@@ -3,10 +3,10 @@
 ### Boofuzz - Advanced HTTP Web Fuzzer
 #### Fast and flexible HTTP fuzzer with multiple wordlist support and advanced filtering capabilities | Directory busting | Parameter fuzzing | Custom payloads
 
-[![Go](https://img.shields.io/badge/Go-1.21+-black)]()
-[![HTTP](https://img.shields.io/badge/HTTP-Fuzzer-black)]()
-[![Wordlists](https://img.shields.io/badge/Multiple-Wordlists-black)]()
-[![Filtering](https://img.shields.io/badge/Advanced-Filtering-black)]()
+[![Go](https://img.shields.io/badge/Go%201.21+-black)]()
+[![HTTP](https://img.shields.io/badge/HTTP%20Fuzzer-black)]()
+[![Wordlists](https://img.shields.io/badge/Multiple%20Wordlists-black)]()
+[![Filtering](https://img.shields.io/badge/Advanced%20Filtering-black)]()
 [![v1.0](https://img.shields.io/badge/v1.0-black)]()
 
 </div>
