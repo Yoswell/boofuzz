@@ -6,13 +6,20 @@ import (
     "strings"
 )
 
-// Range representa un rango de valores (ej: 200-299, 100-200)
+/*
+This package implements the filtering logic for fuzzer results.
+It uses "Matchers" to define which results should be **shown** (e.g., status 200, 403)
+and "Filters" to define which results should be **hidden** (e.g., status 404, size 123).
+Results are shown if they pass all configured filters AND match all configured matchers.
+*/
+
+// Range represents a range of values (e.g., 200-299, 100-200)
 type Range struct {
     Min int
     Max int
 }
 
-// Filter evalua si un resultado debe mostrarse o no
+// Filter evaluates whether a result should be displayed or not
 type Filter struct {
     statusCodes []Range
     hideStatusCodes []Range
@@ -24,14 +31,14 @@ type Filter struct {
     hideSizes    []Range
     showRegex    *regexp.Regexp
     hideRegex    *regexp.Regexp
-    hasMatchers  bool // Indica si hay algún matcher configurado
+    hasMatchers  bool // Indicates if there are any matchers configured
 }
 
-// NewFilter crea un nuevo filtro con la configuración
+// NewFilter creates a new filter with the configuration
 func NewFilter(matcher MatcherConfig, filter FilterConfig) *Filter {
     f := &Filter{}
     
-    // Parsear configuraciones
+    // Parse configurations
     f.statusCodes = parseRanges(matcher.StatusCodes)
     f.hideStatusCodes = parseRanges(filter.StatusCodes)
     f.lines = parseRanges(matcher.Lines)
@@ -41,7 +48,7 @@ func NewFilter(matcher MatcherConfig, filter FilterConfig) *Filter {
     f.sizes = parseRanges(matcher.Size)
     f.hideSizes = parseRanges(filter.Size)
     
-    // Compilar regex si se proporciona
+    // Compile regex if provided
     if matcher.Regex != "" {
         f.showRegex = regexp.MustCompile(matcher.Regex)
     }
@@ -49,57 +56,57 @@ func NewFilter(matcher MatcherConfig, filter FilterConfig) *Filter {
         f.hideRegex = regexp.MustCompile(filter.Regex)
     }
     
-    // Determinar si hay matchers activos
+    // Determine if there are active matchers
     f.hasMatchers = matcher.StatusCodes != "" || matcher.Lines != "" || 
                     matcher.Words != "" || matcher.Size != "" || matcher.Regex != ""
     
     return f
 }
 
-// ShouldShow determina si un resultado debe mostrarse
+// ShouldShow determines if a result should be displayed
 func (f *Filter) ShouldShow(result Result) bool {
-    // Si hay error, mostrar siempre
+    // If there is an error, always show
     if result.Error != "" {
         return true
     }
     
-    // Aplicar filtros de ocultación primero
+    // Apply filters first
     if f.shouldHide(result) {
         return false
     }
     
-    // Si no hay matchers configurados, mostrar todo
+    // If no matchers are configured, show everything
     if !f.hasMatchers {
         return true
     }
     
-    // Aplicar matchers - TODOS los matchers especificados deben coincidir
+    // Apply matchers - ALL specified matchers must match
     return f.shouldMatch(result)
 }
 
-// shouldHide verifica si el resultado debe ser ocultado
+// shouldHide checks if the result should be hidden
 func (f *Filter) shouldHide(result Result) bool {
-    // Verificar códigos de estado a ocultar
+    // Check status codes to hide
     if len(f.hideStatusCodes) > 0 && inRanges(result.Status, f.hideStatusCodes) {
         return true
     }
     
-    // Verificar líneas a ocultar
+    // Check lines to hide
     if len(f.hideLines) > 0 && inRanges(result.Lines, f.hideLines) {
         return true
     }
     
-    // Verificar palabras a ocultar
+    // Verify words to hide
     if len(f.hideWords) > 0 && inRanges(result.Words, f.hideWords) {
         return true
     }
     
-    // Verificar tamaños a ocultar
+    // Check sizes to hide
     if len(f.hideSizes) > 0 && inRanges(result.Size, f.hideSizes) {
         return true
     }
     
-    // Verificar regex a ocultar
+    // Verify regex to hide
     if f.hideRegex != nil && f.hideRegex.MatchString(result.Body) {
         return true
     }
@@ -107,56 +114,56 @@ func (f *Filter) shouldHide(result Result) bool {
     return false
 }
 
-// shouldMatch verifica si el resultado coincide con los matchers
+// shouldMatch verifies if the result matches the matchers
 func (f *Filter) shouldMatch(result Result) bool {
-    // Si no hay matchers, mostrar todo
+    // If there are no matchers, show everything
     if !f.hasMatchers {
         return true
     }
     
-    // Para los matchers: SOLO los que están configurados deben coincidir
-    // Si un matcher está configurado pero no coincide, devolver false
+    // For matchers: ONLY those that are configured must match
+    // If a matcher is configured but doesn't match, return false
     
-    // Verificar códigos de estado (si está configurado)
+    // Check status codes (if configured)
     if len(f.statusCodes) > 0 {
         if !inRanges(result.Status, f.statusCodes) {
             return false
         }
     }
     
-    // Verificar líneas (si está configurado)
+    // Check lines (if configured)
     if len(f.lines) > 0 {
         if !inRanges(result.Lines, f.lines) {
             return false
         }
     }
     
-    // Verificar palabras (si está configurado)
+    // Check words (if configured)
     if len(f.words) > 0 {
         if !inRanges(result.Words, f.words) {
             return false
         }
     }
     
-    // Verificar tamaños (si está configurado)
+    // Check sizes (if configured)
     if len(f.sizes) > 0 {
         if !inRanges(result.Size, f.sizes) {
             return false
         }
     }
     
-    // Verificar regex (si está configurado)
+    // Check regex (if configured)
     if f.showRegex != nil {
         if !f.showRegex.MatchString(result.Body) {
             return false
         }
     }
     
-    // Todos los matchers configurados coinciden
+    // All configured matchers match
     return true
 }
 
-// parseRanges parsea una cadena de rangos como "200-299,404,500-599"
+// parseRanges parses a string of ranges like "200-299,404,500-599"
 func parseRanges(input string) []Range {
     if input == "" {
         return []Range{}
@@ -171,7 +178,7 @@ func parseRanges(input string) []Range {
             continue
         }
         
-        // Verificar si es un rango
+        // Check if it's a range
         if strings.Contains(part, "-") {
             rangeParts := strings.Split(part, "-")
             if len(rangeParts) == 2 {
@@ -182,7 +189,7 @@ func parseRanges(input string) []Range {
                 }
             }
         } else {
-            // Es un valor único
+            // It's a single value
             val, err := strconv.Atoi(part)
             if err == nil {
                 ranges = append(ranges, Range{Min: val, Max: val})
@@ -193,7 +200,7 @@ func parseRanges(input string) []Range {
     return ranges
 }
 
-// inRanges verifica si un valor está dentro de alguno de los rangos
+// inRanges checks if a value is within any of the ranges
 func inRanges(value int, ranges []Range) bool {
     for _, r := range ranges {
         if value >= r.Min && value <= r.Max {
@@ -203,7 +210,9 @@ func inRanges(value int, ranges []Range) bool {
     return false
 }
 
-// parseStatusCodeRanges parsea códigos de estado con formato especial como "2xx,3xx"
+// parseStatusCodeRanges parses status codes with special format like "2xx,3xx"
+// NOTE: This function is not currently used in NewFilter, which uses parseRanges.
+// It is left here as it was in the original snippet, but should be checked if needed.
 func parseStatusCodeRanges(input string) []Range {
     if input == "" {
         return []Range{}
@@ -218,7 +227,7 @@ func parseStatusCodeRanges(input string) []Range {
             continue
         }
         
-        // Verificar si es un rango con xx
+        // Check if it's a range with xx
         if strings.HasSuffix(part, "xx") {
             prefix := strings.TrimSuffix(part, "xx")
             if len(prefix) == 1 {
@@ -231,7 +240,7 @@ func parseStatusCodeRanges(input string) []Range {
                 }
             }
         } else if strings.Contains(part, "-") {
-            // Rango normal
+            // Normal range
             rangeParts := strings.Split(part, "-")
             if len(rangeParts) == 2 {
                 min, err1 := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
@@ -241,7 +250,7 @@ func parseStatusCodeRanges(input string) []Range {
                 }
             }
         } else {
-            // Valor único
+            // Single value
             val, err := strconv.Atoi(part)
             if err == nil {
                 ranges = append(ranges, Range{Min: val, Max: val})

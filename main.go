@@ -12,16 +12,24 @@ import (
     "boofuzz/assets"
 )
 
+/*
+The main package contains the entry point for the boofuzz application.
+It is responsible for parsing command-line flags, setting up the configuration,
+handling graceful shutdown via Ctrl+C (SIGINT/SIGTERM), and initializing
+the core Fuzzer components before starting the scan.
+*/
+
 var wordlists fuzzer.WordlistSpecs
 
 func main() {
-    // Configurar contexto para manejar Ctrl+C
+    // Configure context for Ctrl+C handling
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
     
     sigChan := make(chan os.Signal, 1)
     signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
     
+    // Goroutine to handle graceful shutdown
     go func() {
         <-sigChan
         fmt.Println()
@@ -36,8 +44,15 @@ func main() {
     
     var showStatus, hideStatus, showLines, hideLines, showWords, hideWords, showSize, hideSize, showRegex, hideRegex string
     var showBody, showHeaders, followRedirects, http2, raw, recursive, silent, verbose, colorize, jsonOutput bool
-    var recursionDepth, threads int
+    var threads, recursionDepth int
     
+    // New flags for advanced features
+    var rps, maxRetries int
+    var backoffStrategy, authType, username, password, loginURL, encoderChain string
+    var detectWAF, randomizeUA bool
+    var evasionLevel int
+    
+    // --- Basic Options ---
     flag.StringVar(&config.URL, "u", "", "Target URL")
     flag.StringVar(&config.RequestFile, "request", "", "File with raw HTTP request")
     flag.Var(&wordlists, "w", "Wordlist file (path:BOO, multiple allowed)")
@@ -48,23 +63,23 @@ func main() {
     
     flag.Var(&headers, "H", "Header \"Name: Value\", separated by colon")
     
-    // Show options
+    // --- Show Matcher Options ---
     flag.StringVar(&showStatus, "sc", "200-299,301,302,307,401,403,405,500", "Show HTTP status codes")
     flag.StringVar(&showLines, "sl", "", "Show amount of lines in response")
     flag.StringVar(&showWords, "sw", "", "Show amount of words in response")
     flag.StringVar(&showSize, "ss", "", "Show HTTP response size")
     flag.StringVar(&showRegex, "sr", "", "Show regexp")
     
-    // Hide options
+    // --- Hide Filter Options ---
     flag.StringVar(&hideStatus, "hc", "", "Hide HTTP status codes")
     flag.StringVar(&hideLines, "hl", "", "Hide by amount of lines")
     flag.StringVar(&hideWords, "hw", "", "Hide by amount of words")
     flag.StringVar(&hideSize, "hs", "", "Hide HTTP response size")
     flag.StringVar(&hideRegex, "hr", "", "Hide regexp")
     
-    // General options
+    // --- General Options ---
     flag.BoolVar(&showBody, "sb", false, "Show response body (default: false)")
-    flag.BoolVar(&showHeaders, "sh", false, "Show response headers (default: false)") // Añadido: faltaba esta opción
+    flag.BoolVar(&showHeaders, "sh", false, "Show response headers (default: false)")
     flag.BoolVar(&followRedirects, "L", false, "Follow redirects")
     flag.BoolVar(&http2, "http2", false, "Use HTTP2 protocol")
     flag.BoolVar(&raw, "raw", false, "Do not encode URI")
@@ -76,6 +91,26 @@ func main() {
     flag.BoolVar(&colorize, "c", false, "Colorize output")
     flag.BoolVar(&jsonOutput, "json", false, "JSON output")
     
+    // --- New Advanced Flags: Rate Limiting ---
+    flag.IntVar(&rps, "rate-limit", 0, "Requests per second (0 = no limit)")
+    flag.IntVar(&maxRetries, "max-retries", 3, "Maximum retries for failed requests")
+    flag.StringVar(&backoffStrategy, "backoff", "exponential", "Backoff strategy: linear, exponential, random")
+    
+    // --- New Advanced Flags: Authentication ---
+    flag.StringVar(&authType, "auth-type", "", "Authentication type: basic, bearer, form, oauth2")
+    flag.StringVar(&username, "auth-user", "", "Username for authentication")
+    flag.StringVar(&password, "auth-pass", "", "Password for authentication")
+    flag.StringVar(&loginURL, "auth-url", "", "Login URL for form authentication")
+    
+    // --- New Advanced Flags: Encoding ---
+    flag.StringVar(&encoderChain, "encode", "", "Encoder chain (e.g., 'base64(md5(input))')")
+    
+    // --- New Advanced Flags: Evasion ---
+    flag.BoolVar(&detectWAF, "detect-waf", false, "Detect WAF and adjust evasion")
+    flag.BoolVar(&randomizeUA, "random-ua", true, "Randomize User-Agent")
+    flag.IntVar(&evasionLevel, "evasion", 0, "Evasion level (0-5)")
+    
+    // --- Usage Output ---
     flag.Usage = func() {
         assets.PrintBanner()
         printUsage()
@@ -83,7 +118,7 @@ func main() {
     
     flag.Parse()
     
-    // Validaciones básicas
+    // --- Basic Validations ---
     if config.URL == "" && config.RequestFile == "" {
         fmt.Println("[ERROR]: -u flag or -request flag is required")
         os.Exit(1)
@@ -94,6 +129,7 @@ func main() {
         os.Exit(1)
     }
     
+    // --- Assign Parsed Flags to Config ---
     config.Headers = headers
     config.Wordlists = wordlists
     config.FollowRedirects = followRedirects
@@ -109,6 +145,7 @@ func main() {
     config.JSONOutput = jsonOutput
     config.Colorize = colorize
     
+    // Matcher configuration
     config.Matchers = fuzzer.MatcherConfig{
         StatusCodes: showStatus,
         Lines:       showLines,
@@ -117,6 +154,7 @@ func main() {
         Regex:       showRegex,
     }
     
+    // Filter configuration
     config.Filters = fuzzer.FilterConfig{
         StatusCodes: hideStatus,
         Lines:       hideLines,
@@ -125,6 +163,36 @@ func main() {
         Regex:       hideRegex,
     }
     
+    // --- Configure Advanced Features ---
+    config.RateLimiter = fuzzer.RateLimiterConfig{
+        RequestsPerSecond: rps,
+        MaxRetries:        maxRetries,
+        BackoffStrategy:   backoffStrategy,
+        Jitter:            true, // Defaulting Jitter and Adaptive to true for robustness
+        Adaptive:          true,
+    }
+    
+    config.Auth = fuzzer.AuthConfig{
+        Type:     authType,
+        Username: username,
+        Password: password,
+        LoginURL: loginURL,
+    }
+    
+    // Parse encoder chain string
+    if encoderChain != "" {
+        config.Encoders = fuzzer.EncoderConfig{
+            Chains: []string{encoderChain},
+        }
+    }
+    
+    config.Advanced = fuzzer.AdvancedConfig{
+        DetectWAF:    detectWAF,
+        EvasionLevel: evasionLevel,
+        RandomizeUA:  randomizeUA,
+    }
+    
+    // --- Execution ---
     utils.InitColors(colorize)
     
     printer := utils.NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize)
@@ -136,8 +204,9 @@ func main() {
     }
 }
 
+// printUsage displays detailed help information for the command-line flags.
 func printUsage() {
-    fmt.Println("[options] HTTP OPTIONS:")
+    fmt.Println("[OPTIONS] HTTP OPTIONS:")
     fmt.Println("  -H                Header 'Name: Value', separated by colon. Multiple -H flags are accepted.")
     fmt.Println("  -X                HTTP method to use")
     fmt.Println("  -b                Cookie data 'Cookie=gab272j2n9a8a83j3'")
@@ -150,26 +219,52 @@ func printUsage() {
     fmt.Println("  -u                Target URL")
     fmt.Println("  -x                Proxy URL")
     fmt.Println()
-    fmt.Println("[options] GENERAL OPTIONS:")
+    fmt.Println("[OPTIONS] GENERAL OPTIONS:")
     fmt.Println("  -c                Colorize output. (default: false)")
     fmt.Println("  -json             JSON output (default: false)")
     fmt.Println("  -sb               Show response body (default: false)")
-    fmt.Println("  -sh               Show response headers (default: false)") // Añadido
+    fmt.Println("  -sh               Show response headers (default: false)")
     fmt.Println("  -s                Silent mode (default: false)")
     fmt.Println("  -t                Number of concurrent threads. (default: 40)")
     fmt.Println("  -v                Verbose output (default: false)")
     fmt.Println()
-    fmt.Println("[options] MATCHER OPTIONS:")
+    fmt.Println("[OPTIONS] RATE LIMITING:")
+    fmt.Println("  -rate-limit       Requests per second (default: 0 = no limit)")
+    fmt.Println("  -max-retries      Maximum retries for failed requests (default: 3)")
+    fmt.Println("  -backoff          Backoff strategy: linear, exponential, random (default: exponential)")
+    fmt.Println()
+    fmt.Println("[OPTIONS] AUTHENTICATION:")
+    fmt.Println("  -auth-type        Authentication type: basic, bearer, form, oauth2")
+    fmt.Println("  -auth-user        Username for authentication")
+    fmt.Println("  -auth-pass        Password for authentication")
+    fmt.Println("  -auth-url         Login URL for form authentication")
+    fmt.Println()
+    fmt.Println("[OPTIONS] ENCODING:")
+    fmt.Println("  -encode           Encoder chain (e.g., 'base64(md5(input))', 'urlencode(sha256(input))')")
+    fmt.Println("  Available encoders: base64, md5, sha1, sha256, urlencode, htmlencode, hex, unicode, rot13")
+    fmt.Println()
+    fmt.Println("[OPTIONS] EVASION:")
+    fmt.Println("  -detect-waf       Detect WAF and adjust evasion (default: false)")
+    fmt.Println("  -random-ua        Randomize User-Agent (default: true)")
+    fmt.Println("  -evasion          Evasion level (0-5, default: 0)")
+    fmt.Println()
+    fmt.Println("[OPTIONS] MATCHER OPTIONS (Show Results):")
     fmt.Println("  -sc               Show HTTP status codes (default: 200-299,301,302,307,401,403,405,500)")
     fmt.Println("  -sl               Show amount of lines in response")
     fmt.Println("  -sr               Show regexp")
     fmt.Println("  -ss               Show HTTP response size")
     fmt.Println("  -sw               Show amount of words in response")
     fmt.Println()
-    fmt.Println("[options] FILTER OPTIONS:")
+    fmt.Println("[OPTIONS] FILTER OPTIONS (Hide Results):")
     fmt.Println("  -hc               Hide HTTP status codes")
     fmt.Println("  -hl               Hide by amount of lines")
     fmt.Println("  -hr               Hide regexp")
     fmt.Println("  -hs               Hide HTTP response size")
     fmt.Println("  -hw               Hide by amount of words")
+    fmt.Println()
+    fmt.Println("[EXAMPLES]:")
+    fmt.Println("  Basic fuzzing:        boofuzz -u http://example.com/FUZZ -w wordlist.txt")
+    fmt.Println("  With authentication:  boofuzz -u http://example.com/admin -w wordlist.txt -auth-type form -auth-user admin -auth-pass password -auth-url http://example.com/login")
+    fmt.Println("  With encoding:        boofuzz -u http://example.com/search?q=FUZZ -w wordlist.txt -encode 'base64(md5(input))'")
+    fmt.Println("  With rate limiting:   boofuzz -u http://example.com/FUZZ -w wordlist.txt -rate-limit 10 -max-retries 5")
 }

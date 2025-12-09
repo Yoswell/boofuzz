@@ -1,7 +1,7 @@
 <div align="center">
 
 ### Boofuzz - Advanced HTTP Web Fuzzer
-#### Fast and flexible HTTP fuzzer with multiple wordlist support and advanced filtering capabilities | Directory busting | Parameter fuzzing | Custom payloads
+#### Fast and flexible HTTP fuzzer with multiple wordlist support, advanced filtering, and security testing capabilities | Directory busting | Parameter fuzzing | Custom payloads | WAF Evasion
 
 [![Go](https://img.shields.io/badge/Go%201.21+-black)]()
 [![HTTP](https://img.shields.io/badge/HTTP%20Fuzzer-black)]()
@@ -15,36 +15,47 @@
 
 ### What is Boofuzz?
 
-  Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for directory busting, parameter fuzzing, and vulnerability discovery. It supports multiple wordlists with custom placeholders, advanced filtering options, and provides detailed response analysis including body and header inspection.
+Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for directory busting, parameter fuzzing, and vulnerability discovery. It supports multiple wordlists with custom placeholders, advanced filtering options, and provides detailed response analysis including body and header inspection.
 
-  > [!IMPORTANT]
-  > **Legal and Ethical Notice**: This tool is strictly for educational purposes and authorized security testing. Do **not** use it against systems or networks you do not own or for which you lack explicit authorization to test.
+> [!IMPORTANT]
+> **Legal and Ethical Notice**: This tool is strictly for educational purposes and authorized security testing. Do **not** use it against systems or networks you do not own or for which you lack explicit authorization to test.
 
-  > [!TIP]
-  > **Performance**: Boofuzz can process thousands of requests per second with concurrent threading and efficient HTTP handling using fasthttp.
+> [!TIP]
+> **Performance**: Boofuzz can process thousands of requests per second with concurrent threading, efficient HTTP handling using fasthttp, and smart rate limiting to avoid detection.
 
   * **Multiple Wordlist Support**: Use different wordlists with custom BOO placeholders for complex fuzzing scenarios
   * **Advanced Filtering**: Filter responses by status codes, size, lines, words, or regex patterns
+  * **WAF Evasion Techniques**: Built-in evasion methods to bypass common WAF/IPS systems
+  * **Rate Limiting & Backoff**: Configurable rate limiting with adaptive backoff strategies
+  * **Authentication Support**: Built-in support for various authentication methods (Basic, Bearer, Form-based, OAuth2)
+  * **Payload Encoding**: Multiple encoding options for fuzzing payloads (Base64, URL, Hex, etc.)
+  * **Concurrent Processing**: High-performance concurrent request handling
+  * **Detailed Results**: Comprehensive response analysis with status codes, sizes, and timing
   * **Response Analysis**: Inspect response bodies and headers with dedicated display options
   * **High Performance**: Concurrent request processing with configurable thread counts
   * **Flexible Output**: JSON output support and colored terminal output
   * **Proxy Support**: HTTP proxy integration for testing through intercepting proxies
 
+-----
+
 ### Core Features
 
 #### Fuzzing Engine
+
   * **Multiple Wordlists**: Support for multiple wordlists with custom identifiers (e.g., `wordlist.txt:BOO`)
   * **Placeholder System**: Replace BOO (and custom) placeholders in URLs, headers, and POST data
   * **Concurrent Processing**: Configurable thread count for high-speed fuzzing
   * **Request Customization**: Support for custom headers, methods, cookies, and POST data
 
 #### Response Analysis
+
   * **Status Code Matching**: Show/hide responses based on HTTP status codes
   * **Content Filtering**: Filter by response size, line count, word count, or regex patterns
   * **Body Inspection**: Display response bodies with `-sb` flag
   * **Header Inspection**: Display response headers with `-sh` flag
 
 #### Output Options
+
   * **Verbose Mode**: Detailed output with timing and response statistics
   * **JSON Output**: Machine-readable JSON format for integration
   * **Colored Output**: Colorized terminal output for better readability
@@ -55,6 +66,7 @@
 ### Quick Start
 
 #### Prerequisites
+
   * **Go 1.21+**: Required for building and running the application
   * **Git**: For cloning the repository
 
@@ -88,7 +100,7 @@ go build -o boofuzz
 ./boofuzz -u https://example.com/BOO -w wordlist.txt -sc 200-299
 ```
 
----
+-----
 
 ### How It Works
 
@@ -208,29 +220,6 @@ Apply multiple filters to focus on interesting responses:
 
 -----
 
-### Repository Structure
-
-```
-boofuzz/
-├── main.go                          # Main application entry point
-├── fuzzer/
-│   ├── fuzzer.go                    # Core fuzzing logic and request handling
-│   ├── request.go                   # HTTP request utilities
-│   ├── results.go                   # Result structures and types
-│   └── filters.go                   # Response filtering logic
-├── utils/
-│   ├── printer.go                   # Output formatting and display
-│   ├── headers.go                   # Header parsing utilities
-│   └── colors.go                    # Color output utilities
-├── assets/
-│   └── banner.go                    # ASCII banner generation
-├── go.mod                           # Go module dependencies
-├── go.sum                           # Dependency checksums
-└── README.md                        # This file
-```
-
------
-
 ### Development
 
 #### Building from Source
@@ -254,7 +243,7 @@ go test ./...
 go fmt ./...
 ```
 
----
+-----
 
 ### Troubleshooting
 
@@ -288,6 +277,59 @@ go fmt ./...
 #### API Parameter Fuzzing
 
 ```bash
+./boofuzz -u "https://api.example.com/v1/users?id=BOO" -w parameters.txt -sc 200,400,500
+```
+
+#### WAF Evasion with Rate Limiting
+
+```bash
+# Enable WAF detection and evasion with rate limiting
+./boofuzz -u "https://example.com/search?q=BOO" -w xss-payloads.txt \
+  --detect-waf --evasion 3 --rate-limit 10 --backoff exponential
+```
+
+#### Authentication and Session Handling
+
+```bash
+# Using form-based authentication
+./boofuzz -u "https://example.com/admin/BOO" -w admin-paths.txt \
+  --auth-type form --auth-user admin --auth-pass password --auth-url https://example.com/login
+
+# Using Bearer token
+./boofuzz -u "https://api.example.com/v1/data" -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+#### Advanced Payload Encoding
+
+```bash
+# Using multiple encoding chains for payloads
+./boofuzz -u "https://example.com/search?q=BOO" -w xss-payloads.txt \
+  --encode "base64(md5(input))"
+
+# Using URL encoding with special characters
+./boofuzz -u "https://example.com/search?q=BOO" -w sqli-payloads.txt \
+  --encode "urlencode(input)" --evasion 2
+```
+
+#### Concurrent Fuzzing with Proxies
+
+```bash
+# Using multiple wordlists with proxy
+./boofuzz -u "https://example.com/BOO1/BOO2" \
+  -w1 directories.txt -w2 extensions.txt \
+  -x http://127.0.0.1:8080 -t 20
+```
+
+#### Filtering and Output
+
+```bash
+# Filter responses by size and output to JSON
+./boofuzz -u "https://example.com/BOO" -w wordlist.txt \
+  --size "!0,1000-2000" --json -o results.json
+
+# Show response headers and body for successful requests
+./boofuzz -u "https://example.com/BOO" -w wordlist.txt -sh -sb
+```
 ./boofuzz -u https://api.example.com/search?q=BOO -w parameters.txt -H "Authorization: Bearer TOKEN"
 ```
 
