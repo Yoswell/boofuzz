@@ -90,8 +90,10 @@ func main() {
     flag.IntVar(&threads, "t", 40, "Number of concurrent threads")
     flag.BoolVar(&silent, "s", false, "Silent mode")
     flag.BoolVar(&verbose, "v", false, "Verbose output")
+
     flag.BoolVar(&colorize, "c", false, "Colorize output")
     flag.BoolVar(&jsonOutput, "json", false, "JSON output")
+    flag.BoolVar(&noErrors, "ne", false, "No error messages (default: false)")
     flag.StringVar(&extensions, "ex", "", "Add extensions (comma-separated, e.g., .php,.html,.js)")
     
     // --- New Advanced Flags: Rate Limiting ---
@@ -250,15 +252,7 @@ func printUsage() {
     fmt.Println()
     fmt.Println("[OPTIONS] ENCODING:")
     fmt.Println("  -encode           Encoder chain (e.g., 'base64(md5(input))', 'urlencode(sha256(input))')")
-    fmt.Println("       base64")
-    fmt.Println("       md5")
-    fmt.Println("       sha1")
-    fmt.Println("       sha256")
-    fmt.Println("       urlencode")
-    fmt.Println("       htmlencode")
-    fmt.Println("       hex")
-    fmt.Println("       unicode")
-    fmt.Println("       rot13")
+    fmt.Println("                    base64, md5, sha1, sha256, urlencode, htmlencode, hex, unicode, rot13")
     fmt.Println()
     fmt.Println("[OPTIONS] EVASION:")
     fmt.Println("  -detect-waf       Detect WAF and adjust evasion (default: false)")

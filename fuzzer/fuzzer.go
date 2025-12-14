@@ -381,6 +381,7 @@ func (f *Fuzzer) Run(ctx context.Context) error {
 
     // Display configuration information
     const labelWidth = 21
+
     infoLabels := []struct {
         label string
         value interface{}
@@ -390,7 +391,14 @@ func (f *Fuzzer) Run(ctx context.Context) error {
         {"Follow redirects", f.config.FollowRedirects},
         {"Threads", f.config.Threads},
         {"Rate limit", fmt.Sprintf("%d req/sec", f.config.RateLimiter.RequestsPerSecond)},
-        {"Auth type", f.config.Auth.Type},
+    }
+    
+    // Only show auth type if it's configured
+    if f.config.Auth.Type != "" {
+        infoLabels = append(infoLabels, struct {
+            label string
+            value interface{}
+        }{"Auth type", f.config.Auth.Type})
     }
     
     for _, item := range infoLabels {
@@ -402,11 +410,18 @@ func (f *Fuzzer) Run(ctx context.Context) error {
         fmt.Printf("[info] :: %s: %v\n", labelColumn, item.value)
     }
     
+
     // Print wordlists
     for _, spec := range f.config.Wordlists {
         labelColumn := fmt.Sprintf("%-*s", labelWidth, "Wordlist")
-        fmt.Printf("[info] :: %s: %s [Keyword: %s] (%d words)\n", 
-            labelColumn, spec.Path, spec.BooID, len(f.wordlists[spec.BooID]))
+        fmt.Printf("[info] :: %s: %s [Keyword: FUZZ] (%d words)\n", 
+            labelColumn, spec.Path, len(f.wordlists[spec.BooID]))
+    }
+    
+    // Print extensions if configured
+    if f.config.Extensions != "" {
+        labelColumn := fmt.Sprintf("%-*s", labelWidth, "Extensions")
+        fmt.Printf("[info] :: %s: %s\n", labelColumn, f.config.Extensions)
     }
     
     // Display encoders if configured

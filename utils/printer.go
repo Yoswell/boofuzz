@@ -86,10 +86,18 @@ func (p *Printer) Print(result fuzzer.Result) {
     if p.json {
         p.printJSON(result)
     } else {
+
+
         if result.Error != "" {
+            // Skip error messages if noErrors flag is set
+            if p.noErrors {
+                return
+            }
             // Print error to stdout (or stderr depending on convention)
             if p.colorize {
-                color.New(color.FgRed).Fprintf(p.out, "[error] :: %s: %s\n", result.URL, result.Error)
+                // Color only the [error] part
+                color.New(color.FgRed).Fprint(p.out, "[error]")
+                fmt.Fprintf(p.out, " :: %s: %s\n", result.URL, result.Error)
             } else {
                 fmt.Fprintf(p.out, "[error] :: %s: %s\n", result.URL, result.Error)
             }
@@ -103,12 +111,14 @@ func (p *Printer) Print(result fuzzer.Result) {
             // Aligned column format
             wordColumn := fmt.Sprintf("%-*s", p.maxWordWidth, displayWord)
 
+
             // Determine output based on verbosity
             if p.verbose {
                 if p.colorize {
                     statusColor := p.getStatusColor(result.Status)
-                    statusColor.Fprintf(p.out, "%s [Status: %d, Size: %d, Words: %d, Lines: %d, Duration: %v]\n",
-                        wordColumn,
+                    fmt.Fprintf(p.out, "%s ", wordColumn)
+                    statusColor.Fprint(p.out, "[Status:")
+                    fmt.Fprintf(p.out, " %d, Size: %d, Words: %d, Lines: %d, Duration: %v]\n",
                         result.Status, result.Size, result.Words, result.Lines, result.Duration)
                 } else {
                     fmt.Fprintf(p.out, "%s [Status: %d, Size: %d, Words: %d, Lines: %d, Duration: %v]\n",
@@ -118,8 +128,9 @@ func (p *Printer) Print(result fuzzer.Result) {
             } else {
                 if p.colorize {
                     statusColor := p.getStatusColor(result.Status)
-                    statusColor.Fprintf(p.out, "%s [Status: %d, Size: %d, Words: %d, Lines: %d]\n",
-                        wordColumn,
+                    fmt.Fprintf(p.out, "%s ", wordColumn)
+                    statusColor.Fprint(p.out, "[Status:")
+                    fmt.Fprintf(p.out, " %d, Size: %d, Words: %d, Lines: %d]\n",
                         result.Status, result.Size, result.Words, result.Lines)
                 } else {
                     fmt.Fprintf(p.out, "%s [Status: %d, Size: %d, Words: %d, Lines: %d]\n",
@@ -128,10 +139,12 @@ func (p *Printer) Print(result fuzzer.Result) {
                 }
             }
 
+
             // Show body if enabled
             if p.showBody && len(result.Body) > 0 {
                 if p.colorize {
-                    color.New(color.FgCyan).Fprintln(p.out, "[body]")
+                    color.New(color.FgCyan).Fprint(p.out, "[body]")
+                    fmt.Fprintln(p.out)
                 } else {
                     fmt.Fprintln(p.out, "[body]")
                 }
@@ -142,7 +155,8 @@ func (p *Printer) Print(result fuzzer.Result) {
             // Show headers if enabled
             if p.showHeaders && len(result.Headers) > 0 {
                 if p.colorize {
-                    color.New(color.FgYellow).Fprintln(p.out, "[header]")
+                    color.New(color.FgYellow).Fprint(p.out, "[header]")
+                    fmt.Fprintln(p.out)
                 } else {
                     fmt.Fprintln(p.out, "[header]")
                 }
@@ -202,15 +216,26 @@ func (p *Printer) showProgress() {
         percent = float64(p.completed) / float64(p.total) * 100
     }
     
+
     // Build the simplified progress line
-    progressLine := fmt.Sprintf("\r[progress] :: %s :: %d/%d (%.2f%%)",
+    progressLine := fmt.Sprintf("\r%s :: %s :: %d/%d (%.2f%%)",
+        "[progress]",
         displayWord,
         p.completed,
         p.total,
         percent)
     
     // Display on stderr
-    fmt.Fprint(p.err, progressLine)
+    if p.colorize {
+        color.New(color.FgBlue).Fprint(p.err, "[progress]")
+        fmt.Fprintf(p.err, " :: %s :: %d/%d (%.2f%%)",
+            displayWord,
+            p.completed,
+            p.total,
+            percent)
+    } else {
+        fmt.Fprint(p.err, progressLine)
+    }
     
     // Force flush the output (important for continuous progress display)
     if f, ok := p.err.(interface{ Flush() error }); ok {
@@ -244,9 +269,11 @@ func (p *Printer) Finish() {
         // Calculate final statistics
         durationStr := p.formatDuration(p.elapsedSeconds)
         
+
         // Display final completion message to stderr with full stats
         if p.colorize {
-            color.New(color.FgGreen).Fprintf(p.err, "[finished] :: Completed %d requests in %s (%.1f req/sec)\n", 
+            color.New(color.FgGreen).Fprint(p.err, "[finished]")
+            fmt.Fprintf(p.err, " :: Completed %d requests in %s (%.1f req/sec)\n", 
                 p.completed, durationStr, p.rate)
         } else {
             fmt.Fprintf(p.err, "[finished] :: Completed %d requests in %s (%.1f req/sec)\n", 
