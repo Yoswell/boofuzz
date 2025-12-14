@@ -42,8 +42,8 @@ func main() {
     config := fuzzer.Config{}
     var headers utils.Headers
     
-    var showStatus, hideStatus, showLines, hideLines, showWords, hideWords, showSize, hideSize, showRegex, hideRegex string
-    var showBody, showHeaders, followRedirects, http2, raw, recursive, silent, verbose, colorize, jsonOutput bool
+    var showStatus, hideStatus, showLines, hideLines, showWords, hideWords, showSize, hideSize, showRegex, hideRegex, showExtensions, hideExtensions, extensions string
+    var showBody, showHeaders, followRedirects, http2, raw, recursive, silent, verbose, colorize, jsonOutput, noErrors bool
     var threads, recursionDepth int
     
     // New flags for advanced features
@@ -69,6 +69,7 @@ func main() {
     flag.StringVar(&showWords, "sw", "", "Show amount of words in response")
     flag.StringVar(&showSize, "ss", "", "Show HTTP response size")
     flag.StringVar(&showRegex, "sr", "", "Show regexp")
+    flag.StringVar(&showExtensions, "sx", "", "Show only URLs with specific extensions (comma-separated, e.g., .php,.html,.js)")
     
     // --- Hide Filter Options ---
     flag.StringVar(&hideStatus, "hc", "", "Hide HTTP status codes")
@@ -76,6 +77,7 @@ func main() {
     flag.StringVar(&hideWords, "hw", "", "Hide by amount of words")
     flag.StringVar(&hideSize, "hs", "", "Hide HTTP response size")
     flag.StringVar(&hideRegex, "hr", "", "Hide regexp")
+    flag.StringVar(&hideExtensions, "hx", "", "Hide URLs with specific extensions (comma-separated, e.g., .php,.html,.js)")
     
     // --- General Options ---
     flag.BoolVar(&showBody, "sb", false, "Show response body (default: false)")
@@ -90,6 +92,7 @@ func main() {
     flag.BoolVar(&verbose, "v", false, "Verbose output")
     flag.BoolVar(&colorize, "c", false, "Colorize output")
     flag.BoolVar(&jsonOutput, "json", false, "JSON output")
+    flag.StringVar(&extensions, "ex", "", "Add extensions (comma-separated, e.g., .php,.html,.js)")
     
     // --- New Advanced Flags: Rate Limiting ---
     flag.IntVar(&rps, "rate-limit", 0, "Requests per second (0 = no limit)")
@@ -144,6 +147,8 @@ func main() {
     config.Verbose = verbose
     config.JSONOutput = jsonOutput
     config.Colorize = colorize
+    config.NoErrors = noErrors
+    config.Extensions = extensions
     
     // Matcher configuration
     config.Matchers = fuzzer.MatcherConfig{
@@ -152,8 +157,10 @@ func main() {
         Words:       showWords,
         Size:        showSize,
         Regex:       showRegex,
+        Extensions:  showExtensions,
     }
     
+
     // Filter configuration
     config.Filters = fuzzer.FilterConfig{
         StatusCodes: hideStatus,
@@ -161,6 +168,7 @@ func main() {
         Words:       hideWords,
         Size:        hideSize,
         Regex:       hideRegex,
+        Extensions:  hideExtensions,
     }
     
     // --- Configure Advanced Features ---
@@ -195,7 +203,7 @@ func main() {
     // --- Execution ---
     utils.InitColors(colorize)
     
-    printer := utils.NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize)
+    printer := utils.NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize, noErrors)
     
     fz := fuzzer.NewFuzzer(config, printer)
     if err := fz.Run(ctx); err != nil {
@@ -227,6 +235,7 @@ func printUsage() {
     fmt.Println("  -s                Silent mode (default: false)")
     fmt.Println("  -t                Number of concurrent threads. (default: 40)")
     fmt.Println("  -v                Verbose output (default: false)")
+    fmt.Println("  -ne               No error messages (default: false)")
     fmt.Println()
     fmt.Println("[OPTIONS] RATE LIMITING:")
     fmt.Println("  -rate-limit       Requests per second (default: 0 = no limit)")
@@ -241,7 +250,15 @@ func printUsage() {
     fmt.Println()
     fmt.Println("[OPTIONS] ENCODING:")
     fmt.Println("  -encode           Encoder chain (e.g., 'base64(md5(input))', 'urlencode(sha256(input))')")
-    fmt.Println("  Available encoders: base64, md5, sha1, sha256, urlencode, htmlencode, hex, unicode, rot13")
+    fmt.Println("       base64")
+    fmt.Println("       md5")
+    fmt.Println("       sha1")
+    fmt.Println("       sha256")
+    fmt.Println("       urlencode")
+    fmt.Println("       htmlencode")
+    fmt.Println("       hex")
+    fmt.Println("       unicode")
+    fmt.Println("       rot13")
     fmt.Println()
     fmt.Println("[OPTIONS] EVASION:")
     fmt.Println("  -detect-waf       Detect WAF and adjust evasion (default: false)")
@@ -254,6 +271,10 @@ func printUsage() {
     fmt.Println("  -sr               Show regexp")
     fmt.Println("  -ss               Show HTTP response size")
     fmt.Println("  -sw               Show amount of words in response")
+    fmt.Println("  -sx               Show only URLs with specific extensions (comma-separated, e.g., .php,.html,.js)")
+    fmt.Println()
+    fmt.Println("[OPTIONS] EXTENSIONS:")
+    fmt.Println("  -ex               Add extensions (comma-separated, e.g., .php,.html,.js)")
     fmt.Println()
     fmt.Println("[OPTIONS] FILTER OPTIONS (Hide Results):")
     fmt.Println("  -hc               Hide HTTP status codes")
@@ -261,10 +282,11 @@ func printUsage() {
     fmt.Println("  -hr               Hide regexp")
     fmt.Println("  -hs               Hide HTTP response size")
     fmt.Println("  -hw               Hide by amount of words")
+    fmt.Println("  -hx               Hide URLs with specific extensions (comma-separated, e.g., .php,.html,.js)")
     fmt.Println()
     fmt.Println("[EXAMPLES]:")
-    fmt.Println("  Basic fuzzing:        boofuzz -u http://example.com/FUZZ -w wordlist.txt")
+    fmt.Println("  Basic fuzzing:        boofuzz -u http://example.com/BOO -w wordlist.txt")
     fmt.Println("  With authentication:  boofuzz -u http://example.com/admin -w wordlist.txt -auth-type form -auth-user admin -auth-pass password -auth-url http://example.com/login")
-    fmt.Println("  With encoding:        boofuzz -u http://example.com/search?q=FUZZ -w wordlist.txt -encode 'base64(md5(input))'")
-    fmt.Println("  With rate limiting:   boofuzz -u http://example.com/FUZZ -w wordlist.txt -rate-limit 10 -max-retries 5")
+    fmt.Println("  With encoding:        boofuzz -u http://example.com/search?q=BOO -w wordlist.txt -encode 'base64(md5(input))'")
+    fmt.Println("  With rate limiting:   boofuzz -u http://example.com/BOO -w wordlist.txt -rate-limit 10 -max-retries 5")
 }

@@ -61,6 +61,7 @@ func (w *WordlistSpecs) Set(value string) error {
     return nil
 }
 
+
 // Config holds all user-defined configuration for the fuzzer.
 type Config struct {
     URL             string
@@ -83,6 +84,8 @@ type Config struct {
     Verbose         bool
     JSONOutput      bool
     Colorize        bool
+    NoErrors        bool
+    Extensions      string
     Matchers        MatcherConfig
     Filters         FilterConfig
     RateLimiter     RateLimiterConfig  // New: Rate limiting configuration
@@ -98,6 +101,7 @@ type MatcherConfig struct {
     Words       string
     Size        string
     Regex       string
+    Extensions  string
 }
 
 // FilterConfig defines criteria for hiding results.
@@ -107,6 +111,7 @@ type FilterConfig struct {
     Words       string
     Size        string
     Regex       string
+    Extensions  string
 }
 
 // RateLimiterConfig holds rate limiting configuration
@@ -258,6 +263,20 @@ func (f *Fuzzer) loadWordlists() error {
 
         if err := scanner.Err(); err != nil {
             return fmt.Errorf("[error] :: error reading wordlist %s: %v", spec.Path, err)
+        }
+
+        // Append extensions if specified
+        if f.config.Extensions != "" {
+            extList := parseExtensions(f.config.Extensions)
+            if len(extList) > 0 {
+                var extendedWords []string
+                for _, word := range words {
+                    for _, ext := range extList {
+                        extendedWords = append(extendedWords, word+ext)
+                    }
+                }
+                words = extendedWords
+            }
         }
 
         f.wordlists[spec.BooID] = words

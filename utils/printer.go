@@ -29,6 +29,7 @@ type Printer struct {
     showHeaders  bool  // Field added
     json         bool
     colorize     bool
+    noErrors     bool
     maxWordWidth int
     
     // For progress handling
@@ -50,17 +51,18 @@ type Printer struct {
 
 // NewPrinter is a convenience constructor for backwards compatibility (assumes showHeaders=false).
 func NewPrinter(verbose, showBody, jsonOutput, colorize bool) *Printer {
-    return NewPrinterWithHeaders(verbose, showBody, false, jsonOutput, colorize)
+    return NewPrinterWithHeaders(verbose, showBody, false, jsonOutput, colorize, false)
 }
 
 // NewPrinterWithHeaders creates a new Printer instance with full configuration.
-func NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize bool) *Printer {
+func NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize, noErrors bool) *Printer {
     return &Printer{
         verbose:      verbose,
         showBody:     showBody,
         showHeaders:  showHeaders,  // Store the parameter
         json:         jsonOutput,
         colorize:     colorize,
+        noErrors:     noErrors,
         maxWordWidth: 25,
         out:          os.Stdout,
         err:          os.Stderr,

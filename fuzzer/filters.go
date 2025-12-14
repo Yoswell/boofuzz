@@ -31,6 +31,8 @@ type Filter struct {
     hideSizes    []Range
     showRegex    *regexp.Regexp
     hideRegex    *regexp.Regexp
+    showExtensions []string
+    hideExtensions []string
     hasMatchers  bool // Indicates if there are any matchers configured
 }
 
@@ -47,7 +49,9 @@ func NewFilter(matcher MatcherConfig, filter FilterConfig) *Filter {
     f.hideWords = parseRanges(filter.Words)
     f.sizes = parseRanges(matcher.Size)
     f.hideSizes = parseRanges(filter.Size)
-    
+    f.showExtensions = parseExtensions(matcher.Extensions)
+    f.hideExtensions = parseExtensions(filter.Extensions)
+
     // Compile regex if provided
     if matcher.Regex != "" {
         f.showRegex = regexp.MustCompile(matcher.Regex)
@@ -57,8 +61,8 @@ func NewFilter(matcher MatcherConfig, filter FilterConfig) *Filter {
     }
     
     // Determine if there are active matchers
-    f.hasMatchers = matcher.StatusCodes != "" || matcher.Lines != "" || 
-                    matcher.Words != "" || matcher.Size != "" || matcher.Regex != ""
+    f.hasMatchers = matcher.StatusCodes != "" || matcher.Lines != "" ||
+                    matcher.Words != "" || matcher.Size != "" || matcher.Regex != "" || matcher.Extensions != ""
     
     return f
 }
@@ -120,45 +124,52 @@ func (f *Filter) shouldMatch(result Result) bool {
     if !f.hasMatchers {
         return true
     }
-    
+
     // For matchers: ONLY those that are configured must match
     // If a matcher is configured but doesn't match, return false
-    
+
     // Check status codes (if configured)
     if len(f.statusCodes) > 0 {
         if !inRanges(result.Status, f.statusCodes) {
             return false
         }
     }
-    
+
     // Check lines (if configured)
     if len(f.lines) > 0 {
         if !inRanges(result.Lines, f.lines) {
             return false
         }
     }
-    
+
     // Check words (if configured)
     if len(f.words) > 0 {
         if !inRanges(result.Words, f.words) {
             return false
         }
     }
-    
+
     // Check sizes (if configured)
     if len(f.sizes) > 0 {
         if !inRanges(result.Size, f.sizes) {
             return false
         }
     }
-    
+
     // Check regex (if configured)
     if f.showRegex != nil {
         if !f.showRegex.MatchString(result.Body) {
             return false
         }
     }
-    
+
+    // Check extensions (if configured)
+    if len(f.showExtensions) > 0 {
+        if !hasExtension(result.URL, f.showExtensions) {
+            return false
+        }
+    }
+
     // All configured matchers match
     return true
 }
@@ -204,6 +215,44 @@ func parseRanges(input string) []Range {
 func inRanges(value int, ranges []Range) bool {
     for _, r := range ranges {
         if value >= r.Min && value <= r.Max {
+            return true
+        }
+    }
+    return false
+}
+
+// parseExtensions parses a comma-separated list of extensions (e.g., ".php,.html,.js")
+func parseExtensions(input string) []string {
+    if input == "" {
+        return []string{}
+    }
+
+    var extensions []string
+    parts := strings.Split(input, ",")
+
+    for _, part := range parts {
+        part = strings.TrimSpace(part)
+        if part != "" {
+            // Ensure extension starts with a dot
+            if !strings.HasPrefix(part, ".") {
+                part = "." + part
+            }
+            extensions = append(extensions, strings.ToLower(part))
+        }
+    }
+
+    return extensions
+}
+
+// hasExtension checks if the URL ends with any of the specified extensions
+func hasExtension(url string, extensions []string) bool {
+    if len(extensions) == 0 {
+        return true // No extensions specified means no filtering
+    }
+
+    urlLower := strings.ToLower(url)
+    for _, ext := range extensions {
+        if strings.HasSuffix(urlLower, ext) {
             return true
         }
     }
