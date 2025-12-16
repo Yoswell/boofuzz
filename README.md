@@ -377,12 +377,10 @@ go build -o boofuzz
 ```bash
 # API endpoint discovery with authentication
 ./boofuzz -u "https://api.example.com/v1/FUZZ" -w api-endpoints.txt \
-
   -H "Authorization: Bearer TOKEN" -evasion 2
 
 # Parameter fuzzing with multiple encoders
 ./boofuzz -u "https://api.example.com/v1/users?filter=FUZZ" -w filters.txt \
-
   -encode "urlencode(base64(input))" -json -sc 200,400,422
 
 # Rate limited sensitive data enumeration
@@ -399,7 +397,6 @@ go build -o boofuzz
 
 # Login bypass testing with session handling
 ./boofuzz -u https://example.com/login -X POST \
-
   -d "username=admin&password=FUZZ" -w passwords.txt \
   -auth-type form -auth-user admin -auth-pass wrongpass \
   -auth-url https://example.com/login -sc 302,200
