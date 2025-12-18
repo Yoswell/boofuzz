@@ -26,20 +26,18 @@ Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for direct
 > [!TIP]
 > **Performance**: Boofuzz can process thousands of requests per second with concurrent threading, efficient HTTP handling using fasthttp, smart rate limiting to avoid detection, and adaptive backoff strategies.
 
-  * **Multiple Wordlist Support**: Use different wordlists with custom FUZZ placeholders for complex fuzzing scenarios
-  * **Advanced Filtering**: Filter responses by status codes, size, lines, words, regex patterns, or file extensions
-  * **WAF Evasion Techniques**: Built-in evasion methods with automatic WAF detection to bypass common WAF/IPS systems
-  * **Rate Limiting & Backoff**: Configurable rate limiting with adaptive backoff strategies (linear, exponential, random)
-  * **Authentication Support**: Built-in support for various authentication methods (Basic, Bearer, Form-based, OAuth2)
-  * **Payload Encoding**: Multiple encoding options for fuzzing payloads (Base64, MD5, SHA1, SHA256, URL, HTML, Hex, Unicode, ROT13)
-  * **Concurrent Processing**: High-performance concurrent request handling with configurable thread counts
-  * **Detailed Results**: Comprehensive response analysis with status codes, sizes, and timing
-  * **Response Analysis**: Inspect response bodies and headers with dedicated display options
-
-
-  * **Extension Filtering**: Show/hide results based on file extensions (.php, .html, .js, etc.)
-  * **Flexible Output**: JSON output support and colored terminal output
-  * **Proxy Support**: HTTP proxy integration for testing through intercepting proxies
+  * Use different wordlists with custom FUZZ placeholders for complex fuzzing scenarios
+  * Filter responses by status codes, size, lines, words, regex patterns, or file extensions
+  * Built-in evasion methods with automatic WAF detection to bypass common WAF/IPS systems
+  * Configurable rate limiting with adaptive backoff strategies (linear, exponential, random)
+  * Built-in support for various authentication methods (Basic, Bearer, Form-based, OAuth2)
+  * Multiple encoding options for fuzzing payloads (Base64, MD5, SHA1, SHA256, URL, HTML, Hex, Unicode, ROT13)
+  * High-performance concurrent request handling with configurable thread counts
+  * Comprehensive response analysis with status codes, sizes, and timing
+  * Inspect response bodies and headers with dedicated display options
+  * Show/hide results based on file extensions (.php, .html, .js, etc.)
+  * JSON output support and colored terminal output
+  * HTTP proxy integration for testing through intercepting proxies
 
 -----
 
