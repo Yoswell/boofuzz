@@ -1,5 +1,3 @@
-<div align="center">
-
 ### Boofuzz - Advanced HTTP Web Fuzzer
 
 #### Fast and flexible HTTP fuzzer with multiple wordlist support, advanced filtering, authentication, WAF evasion, and security testing capabilities | Directory busting | Parameter fuzzing | Custom payloads | WAF Detection | Rate Limiting | Authentication
@@ -11,8 +9,6 @@
 [![WAF](https://img.shields.io/badge/WAF%20Evasion-black)]()
 [![Auth](https://img.shields.io/badge/Authentication-black)]()
 [![v2.0](https://img.shields.io/badge/v2.0-black)]()
-
-</div>
 
 -----
 
