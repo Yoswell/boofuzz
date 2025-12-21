@@ -417,6 +417,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 -----
 
-**Made with love by Vishok**
+**Made with love by V1sh0k**
 
 _HTTP fuzzing made fast, flexible, and secure_
