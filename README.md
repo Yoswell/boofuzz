@@ -137,6 +137,13 @@ go build -o boofuzz
   * `-hr`: Hide by regex
   * `-sx`: Show only URLs with specific extensions (comma-separated, e.g., .php,.html,.js)
   * `-hx`: Hide URLs with specific extensions (comma-separated, e.g., .php,.html,.js)
+  * `-xc-c`:  Exclude comments (#, ~, /)
+  * `-xc-d`:  Exclude dotfiles (.)
+  * `-xc-n`:  Exclude numbers (0-9)
+  * `-xc-upper`: Exclude all-uppercase
+  * `-xc-lower`: Exclude all-lowercase
+  * `-xc-s-upper`: Exclude first-letter uppercase
+  * `-xc-s-lower`: Exclude first-letter lowercase
 
 #### General Options
 
@@ -299,62 +306,6 @@ go build -o boofuzz
 
 -----
 
-### Complex Examples
-
-#### Multi-Stage Attack Simulation
-
-```bash
-
-# Stage 1: Discovery with WAF detection
-./boofuzz -u https://example.com/FUZZ -w discovery.txt \
-  -detect-waf -evasion 2 -rate-limit 5
-
-# Stage 2: Authenticated enumeration
-./boofuzz -u https://example.com/admin/FUZZ -w admin-paths.txt \
-  -auth-type form -auth-user admin -auth-pass password \
-  -auth-url https://example.com/login -evasion 3
-
-# Stage 3: Parameter fuzzing with encoding
-./boofuzz -u "https://example.com/api/v1/users?id=FUZZ" -w parameters.txt \
-  -encode "base64(input)" -sc 200,400,500 -json
-```
-
-#### API Security Testing
-
-```bash
-# API endpoint discovery with authentication
-./boofuzz -u "https://api.example.com/v1/FUZZ" -w api-endpoints.txt \
-  -H "Authorization: Bearer TOKEN" -evasion 2
-
-# Parameter fuzzing with multiple encoders
-./boofuzz -u "https://api.example.com/v1/users?filter=FUZZ" -w filters.txt \
-  -encode "urlencode(base64(input))" -json -sc 200,400,422
-
-# Rate limited sensitive data enumeration
-./boofuzz -u "https://api.example.com/v1/users/FUZZ/profile" -w user-ids.txt \
-  -auth-type bearer -auth-pass JWT_TOKEN -rate-limit 2 -evasion 3
-```
-
-#### Web Application Security Assessment
-
-```bash
-# Comprehensive directory discovery
-./boofuzz -u https://example.com/FUZZ -w comprehensive.txt \
-  -sc 200,301,302,403 -sx ".php,.asp,.jsp,.html" -rate-limit 10
-
-# Login bypass testing with session handling
-./boofuzz -u https://example.com/login -X POST \
-  -d "username=admin&password=FUZZ" -w passwords.txt \
-  -auth-type form -auth-user admin -auth-pass wrongpass \
-  -auth-url https://example.com/login -sc 302,200
-
-# File upload fuzzing with content-type evasion
-./boofuzz -u https://example.com/upload -X POST \
-  -H "Content-Type: multipart/form-data; boundary=----WebKitFormBoundary" \
-  -d "------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"FUZZ\"\r\n\r\npayload\r\n------WebKitFormBoundary--" \
-  -w payloads.txt -evasion 2
-```
-
 #### WAF Bypass Techniques
 
 ```bash
@@ -371,23 +322,6 @@ go build -o boofuzz
   -H "X-Forwarded-For: 127.0.0.1" -H "X-Real-IP: 127.0.0.1" \
   --evasion 2 --detect-waf
 ```
-
-#### Performance Testing and Stress
-
-```bash
-# High-volume discovery with adaptive rate limiting
-./boofuzz -u https://example.com/FUZZ -w large-wordlist.txt \
-  -t 100 -rate-limit 100 -backoff random
-
-# Concurrent endpoint testing
-./boofuzz -u https://example.com/api/v1/FUZZ -w endpoints.txt \
-  -t 50 -rate-limit 50 -evasion 1
-
-# Long-running monitoring with exponential backoff
-./boofuzz -u https://example.com/FUZZ -w monitor.txt \
-  -rate-limit 1 -backoff exponential -max-retries 20 -s
-```
-
 -----
 
 ### Contributing
