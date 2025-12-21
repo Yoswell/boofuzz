@@ -1,6 +1,12 @@
 ### Boofuzz - Advanced HTTP Web Fuzzer
 
-#### Fast and flexible HTTP fuzzer with multiple wordlist support, advanced filtering, authentication, WAF evasion, and security testing capabilities | Directory busting | Parameter fuzzing | Custom payloads | WAF Detection | Rate Limiting | Authentication
+* Fast and flexible HTTP fuzzer with multiple wordlist support, advanced filtering...
+* Directory busting
+* Parameter fuzzing
+* Custom payloads
+* WAF Detection
+* Rate Limiting
+* Authentication
 
 [![Go](https://img.shields.io/badge/Go%201.21+-black)]()
 [![HTTP](https://img.shields.io/badge/HTTP%20Fuzzer-black)]()
@@ -26,12 +32,12 @@ Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for direct
   * Filter responses by status codes, size, lines, words, regex patterns, or file extensions
   * Built-in evasion methods with automatic WAF detection to bypass common WAF/IPS systems
   * Configurable rate limiting with adaptive backoff strategies (linear, exponential, random)
-  * Built-in support for various authentication methods (Basic, Bearer, Form-based, OAuth2)
-  * Multiple encoding options for fuzzing payloads (Base64, MD5, SHA1, SHA256, URL, HTML, Hex, Unicode, ROT13)
+  * Built-in support for various authentication methods (`Basic`, `Bearer`, `Form-based`, `OAuth2`)
+  * Multiple encoding options for fuzzing payloads (`Base64`, `MD5`, `SHA1`, `SHA256`, `URL`, `HTML`, `Hex`, `Unicode`, `ROT13`)
   * High-performance concurrent request handling with configurable thread counts
   * Comprehensive response analysis with status codes, sizes, and timing
   * Inspect response bodies and headers with dedicated display options
-  * Show/hide results based on file extensions (.php, .html, .js, etc.)
+  * Show/hide results based on file extensions (`.php`, `.html`, `.js`, etc.)
   * JSON output support and colored terminal output
   * HTTP proxy integration for testing through intercepting proxies
 
@@ -108,11 +114,9 @@ Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for direct
 #### Installation & Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# # Clone and build
+git clone https://github.com/Yoswell/boofuzz.git
 cd boofuzz
-
-# Build the application
 go build -o boofuzz
 ```
 
