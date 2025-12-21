@@ -1,6 +1,12 @@
 ### Boofuzz - Advanced HTTP Web Fuzzer
 
-#### Fast and flexible HTTP fuzzer with multiple wordlist support, advanced filtering, authentication, WAF evasion, and security testing capabilities | Directory busting | Parameter fuzzing | Custom payloads | WAF Detection | Rate Limiting | Authentication
+* Fast and flexible HTTP fuzzer with multiple wordlist support, advanced filtering...
+* Directory busting
+* Parameter fuzzing
+* Custom payloads
+* WAF Detection
+* Rate Limiting
+* Authentication
 
 [![Go](https://img.shields.io/badge/Go%201.21+-black)]()
 [![HTTP](https://img.shields.io/badge/HTTP%20Fuzzer-black)]()
@@ -22,20 +28,16 @@ Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for direct
 > [!TIP]
 > **Performance**: Boofuzz can process thousands of requests per second with concurrent threading, efficient HTTP handling using fasthttp, smart rate limiting to avoid detection, and adaptive backoff strategies.
 
-  * **Multiple Wordlist Support**: Use different wordlists with custom FUZZ placeholders for complex fuzzing scenarios
-  * **Advanced Filtering**: Filter responses by status codes, size, lines, words, regex patterns, or file extensions
-  * **WAF Evasion Techniques**: Built-in evasion methods with automatic WAF detection to bypass common WAF/IPS systems
-  * **Rate Limiting & Backoff**: Configurable rate limiting with adaptive backoff strategies (linear, exponential, random)
-  * **Authentication Support**: Built-in support for various authentication methods (Basic, Bearer, Form-based, OAuth2)
-  * **Payload Encoding**: Multiple encoding options for fuzzing payloads (Base64, MD5, SHA1, SHA256, URL, HTML, Hex, Unicode, ROT13)
-  * **Concurrent Processing**: High-performance concurrent request handling with configurable thread counts
-  * **Detailed Results**: Comprehensive response analysis with status codes, sizes, and timing
-  * **Response Analysis**: Inspect response bodies and headers with dedicated display options
-
-
-  * **Extension Filtering**: Show/hide results based on file extensions (.php, .html, .js, etc.)
-  * **Flexible Output**: JSON output support and colored terminal output
-  * **Proxy Support**: HTTP proxy integration for testing through intercepting proxies
+  * Filter responses by status codes, size, lines, words, regex patterns, or file extensions
+  * Built-in evasion methods with automatic WAF detection to bypass common WAF/IPS systems
+  * Configurable rate limiting with adaptive backoff strategies (`linear`, `exponential`, `random`)
+  * Built-in support for various authentication methods (`Basic`, `Bearer`, `Form-based`, `OAuth2`)
+  * Multiple encoding options (`Base64`, `MD5`, `SHA1`, `SHA256`, `URL`, `HTML`, `Hex`, `Unicode`, `ROT13`)
+  * High-performance concurrent request handling with configurable thread counts
+  * Comprehensive response analysis with status codes, sizes, and timing
+  * Inspect response bodies and headers with dedicated display options
+  * Show/hide results based on file extensions (`.php`, `.html`, `.js`, etc.)
+  * JSON output support and colored terminal output
 
 -----
 
@@ -110,11 +112,9 @@ Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for direct
 #### Installation & Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# # Clone and build
+git clone https://github.com/Yoswell/boofuzz.git
 cd boofuzz
-
-# Build the application
 go build -o boofuzz
 ```
 
@@ -373,12 +373,10 @@ go build -o boofuzz
 ```bash
 # API endpoint discovery with authentication
 ./boofuzz -u "https://api.example.com/v1/FUZZ" -w api-endpoints.txt \
-
   -H "Authorization: Bearer TOKEN" -evasion 2
 
 # Parameter fuzzing with multiple encoders
 ./boofuzz -u "https://api.example.com/v1/users?filter=FUZZ" -w filters.txt \
-
   -encode "urlencode(base64(input))" -json -sc 200,400,422
 
 # Rate limited sensitive data enumeration
@@ -395,7 +393,6 @@ go build -o boofuzz
 
 # Login bypass testing with session handling
 ./boofuzz -u https://example.com/login -X POST \
-
   -d "username=admin&password=FUZZ" -w passwords.txt \
   -auth-type form -auth-user admin -auth-pass wrongpass \
   -auth-url https://example.com/login -sc 302,200
