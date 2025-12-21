@@ -26,7 +26,7 @@ It handles:
 type Printer struct {
     verbose      bool
     showBody     bool
-    showHeaders  bool  // Field added
+    showHeaders  bool
     json         bool
     colorize     bool
     noErrors     bool
@@ -59,7 +59,7 @@ func NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize,
     return &Printer{
         verbose:      verbose,
         showBody:     showBody,
-        showHeaders:  showHeaders,  // Store the parameter
+        showHeaders:  showHeaders,
         json:         jsonOutput,
         colorize:     colorize,
         noErrors:     noErrors,
@@ -67,6 +67,49 @@ func NewPrinterWithHeaders(verbose, showBody, showHeaders, jsonOutput, colorize,
         out:          os.Stdout,
         err:          os.Stderr,
     }
+}
+
+// PrintConfigInfo prints basic configuration information
+func (p *Printer) PrintConfigInfo(config fuzzer.Config, wordlists map[string][]string) {
+    const labelWidth = 21
+    
+    // Imprimir información básica
+    infoLabels := []struct {
+        label string
+        value interface{}
+    }{
+        {"Method", config.Method},
+        {"URL", config.URL},
+        {"Threads", config.Threads},
+    }
+    
+    // Imprimir cada línea de info
+    for _, item := range infoLabels {
+        displayLabel := item.label
+        if len(displayLabel) > labelWidth {
+            displayLabel = displayLabel[:labelWidth-3] + "..."
+        }
+        labelColumn := fmt.Sprintf("%-*s", labelWidth, displayLabel)
+        
+        fmt.Fprintf(p.err, "[info] :: %s: %v\n", labelColumn, item.value)
+    }
+    
+    // Imprimir información de wordlists
+    for _, spec := range config.Wordlists {
+        if words, exists := wordlists[spec.BooID]; exists {
+            labelColumn := fmt.Sprintf("%-*s", labelWidth, "Wordlist")
+            fmt.Fprintf(p.err, "[info] :: %s: %s [Keyword: %s] (%d words)\n", 
+                labelColumn, spec.Path, spec.BooID, len(words))
+        }
+    }
+    
+    // Imprimir extensiones si existen
+    if config.Extensions != "" {
+        labelColumn := fmt.Sprintf("%-*s", labelWidth, "Extensions")
+        fmt.Fprintf(p.err, "[info] :: %s: %s\n", labelColumn, config.Extensions)
+    }
+    
+    fmt.Fprintln(p.err) // Línea en blanco antes de empezar
 }
 
 // Print processes and displays a single fuzzer result.
@@ -86,18 +129,14 @@ func (p *Printer) Print(result fuzzer.Result) {
     if p.json {
         p.printJSON(result)
     } else {
-
-
         if result.Error != "" {
             // Skip error messages if noErrors flag is set
             if p.noErrors {
                 return
             }
-            // Print error to stdout (or stderr depending on convention)
+            // Print error to stdout con color completo en la línea
             if p.colorize {
-                // Color only the [error] part
-                color.New(color.FgRed).Fprint(p.out, "[error]")
-                fmt.Fprintf(p.out, " :: %s: %s\n", result.URL, result.Error)
+                color.New(color.FgRed).Fprintf(p.out, "[error] :: %s: %s\n", result.URL, result.Error)
             } else {
                 fmt.Fprintf(p.out, "[error] :: %s: %s\n", result.URL, result.Error)
             }
@@ -111,36 +150,28 @@ func (p *Printer) Print(result fuzzer.Result) {
             // Aligned column format
             wordColumn := fmt.Sprintf("%-*s", p.maxWordWidth, displayWord)
 
-
-            // Determine output based on verbosity
-            if p.verbose {
-                if p.colorize {
-                    statusColor := p.getStatusColor(result.Status)
-                    fmt.Fprintf(p.out, "%s ", wordColumn)
-                    statusColor.Fprint(p.out, "[Status:")
-                    fmt.Fprintf(p.out, " %d, Size: %d, Words: %d, Lines: %d, Duration: %v]\n",
-                        result.Status, result.Size, result.Words, result.Lines, result.Duration)
-                } else {
-                    fmt.Fprintf(p.out, "%s [Status: %d, Size: %d, Words: %d, Lines: %d, Duration: %v]\n",
-                        wordColumn,
-                        result.Status, result.Size, result.Words, result.Lines, result.Duration)
-                }
+            // Determinar el color basado en el status code
+            var statusColor *color.Color
+            if p.colorize {
+                statusColor = p.getStatusColor(result.Status)
             } else {
-                if p.colorize {
-                    statusColor := p.getStatusColor(result.Status)
-                    fmt.Fprintf(p.out, "%s ", wordColumn)
-                    statusColor.Fprint(p.out, "[Status:")
-                    fmt.Fprintf(p.out, " %d, Size: %d, Words: %d, Lines: %d]\n",
-                        result.Status, result.Size, result.Words, result.Lines)
-                } else {
-                    fmt.Fprintf(p.out, "%s [Status: %d, Size: %d, Words: %d, Lines: %d]\n",
-                        wordColumn,
-                        result.Status, result.Size, result.Words, result.Lines)
-                }
+                statusColor = color.New() // Sin color
+            }
+            
+            // Determinar output basado en verbosity
+            if p.verbose {
+                // Colorizar toda la línea según el status code
+                statusColor.Printf("%s [Status: %d, Size: %d, Words: %d, Lines: %d, Duration: %v]\n",
+                    wordColumn,
+                    result.Status, result.Size, result.Words, result.Lines, result.Duration)
+            } else {
+                // Colorizar toda la línea según el status code
+                statusColor.Printf("%s [Status: %d, Size: %d, Words: %d, Lines: %d]\n",
+                    wordColumn,
+                    result.Status, result.Size, result.Words, result.Lines)
             }
 
-
-            // Show body if enabled
+            // Show body if enabled (sin colorizar, solo el tag [body])
             if p.showBody && len(result.Body) > 0 {
                 if p.colorize {
                     color.New(color.FgCyan).Fprint(p.out, "[body]")
@@ -152,7 +183,7 @@ func (p *Printer) Print(result fuzzer.Result) {
                 fmt.Fprintln(p.out)
             }
 
-            // Show headers if enabled
+            // Show headers if enabled (sin colorizar, solo el tag [header])
             if p.showHeaders && len(result.Headers) > 0 {
                 if p.colorize {
                     color.New(color.FgYellow).Fprint(p.out, "[header]")
@@ -216,7 +247,6 @@ func (p *Printer) showProgress() {
         percent = float64(p.completed) / float64(p.total) * 100
     }
     
-
     // Build the simplified progress line
     progressLine := fmt.Sprintf("\r%s :: %s :: %d/%d (%.2f%%)",
         "[progress]",
@@ -269,7 +299,6 @@ func (p *Printer) Finish() {
         // Calculate final statistics
         durationStr := p.formatDuration(p.elapsedSeconds)
         
-
         // Display final completion message to stderr with full stats
         if p.colorize {
             color.New(color.FgGreen).Fprint(p.err, "[finished]")

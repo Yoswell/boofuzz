@@ -11,6 +11,7 @@ import (
     "strings"
     "sync"
     "time"
+    "unicode"
 
     "github.com/valyala/fasthttp"
     "boofuzz/assets"
@@ -26,24 +27,20 @@ It utilizes advanced features like Rate Limiting, Authentication, Encoders,
 and WAF Evasion Techniques to perform more robust and stealthy fuzzing.
 */
 
-// WordlistSpec holds the path to a wordlist and its associated substitution keyword (BooID).
 type WordlistSpec struct {
     Path  string
     BooID string
 }
 
-// WordlistSpecs is a slice of WordlistSpec used for configuration parsing.
 type WordlistSpecs []WordlistSpec
 
-// String returns the string representation of WordlistSpecs.
 func (w *WordlistSpecs) String() string {
     return fmt.Sprintf("%v", *w)
 }
 
-// Set parses a single wordlist definition (path or path:KEYWORD) into the slice.
 func (w *WordlistSpecs) Set(value string) error {
     if !strings.Contains(value, ":") {
-        *w = append(*w, WordlistSpec{Path: value, BooID: "BOO"})
+        *w = append(*w, WordlistSpec{Path: value, BooID: "FUZZ"})
         return nil
     }
     
@@ -61,8 +58,6 @@ func (w *WordlistSpecs) Set(value string) error {
     return nil
 }
 
-
-// Config holds all user-defined configuration for the fuzzer.
 type Config struct {
     URL             string
     RequestFile     string
@@ -88,13 +83,20 @@ type Config struct {
     Extensions      string
     Matchers        MatcherConfig
     Filters         FilterConfig
-    RateLimiter     RateLimiterConfig  // New: Rate limiting configuration
-    Auth            AuthConfig         // New: Authentication configuration
-    Encoders        EncoderConfig      // New: Encoder chain configuration
-    Advanced        AdvancedConfig     // New: Advanced options like WAF evasion
+    RateLimiter     RateLimiterConfig
+    Auth            AuthConfig
+    Encoders        EncoderConfig
+    Advanced        AdvancedConfig
+    
+    ExcludeComments   bool
+    ExcludeDots       bool
+    ExcludeNumbers    bool
+    ExcludeAllUpper   bool
+    ExcludeAllLower   bool
+    ExcludeFirstUpper bool
+    ExcludeFirstLower bool
 }
 
-// MatcherConfig defines criteria for showing results.
 type MatcherConfig struct {
     StatusCodes string
     Lines       string
@@ -104,7 +106,6 @@ type MatcherConfig struct {
     Extensions  string
 }
 
-// FilterConfig defines criteria for hiding results.
 type FilterConfig struct {
     StatusCodes string
     Lines       string
@@ -114,29 +115,16 @@ type FilterConfig struct {
     Extensions  string
 }
 
-// RateLimiterConfig holds rate limiting configuration
-type RateLimiterConfig struct {
-    RequestsPerSecond int
-    Burst             int
-    Adaptive          bool
-    Jitter            bool
-    MaxRetries        int
-    BackoffStrategy   string
-}
-
-// EncoderConfig holds encoder configuration
 type EncoderConfig struct {
     Chains []string
 }
 
-// AdvancedConfig holds advanced fuzzing options
 type AdvancedConfig struct {
     DetectWAF      bool
     EvasionLevel   int
     RandomizeUA    bool
 }
 
-// Result holds the results of a fuzzing request
 type Result struct {
     URL      string
     Payload  string
@@ -150,11 +138,10 @@ type Result struct {
     Error    string
 }
 
-// Fuzzer is the main structure containing the fuzzer's state and components.
 type Fuzzer struct {
     config           Config
     client           *fasthttp.Client
-    wordlists        map[string][]string // Map of keyword (BooID) to list of words
+    wordlists        map[string][]string
     results          chan Result
     wg               sync.WaitGroup
     startTime        time.Time
@@ -169,22 +156,21 @@ type Fuzzer struct {
     ctx              context.Context
     cancel           context.CancelFunc
     totalCombinations int
-    rateLimiter      *RateLimiter      // New: Rate limiter instance
-    authManager      *AuthManager      // New: Authentication manager instance
-    encoder          *Encoder          // New: Encoder instance for payload manipulation
-    wafDetector      *WAFDetector      // New: WAF detection instance
-    requestQueue     chan *fasthttp.Request // New: For rate limiting/worker coordination
+    rateLimiter      *RateLimiter
+    authManager      *AuthManager
+    encoder          *Encoder
+    wafDetector      *WAFDetector
+    requestQueue     chan *fasthttp.Request
 }
 
-// ResultPrinter defines the interface for displaying fuzzer output.
 type ResultPrinter interface {
     Print(result Result)
     ShowProgress(currentWord string, completed, total int, elapsedSeconds float64, rate float64)
     HideProgress()
     Finish()
+    PrintConfigInfo(config Config, wordlists map[string][]string)  // Nueva interfaz
 }
 
-// NewFuzzer initializes the Fuzzer with the given configuration and printer.
 func NewFuzzer(config Config, printer ResultPrinter) *Fuzzer {
     client := &fasthttp.Client{
         Name:                "boofuzz",
@@ -194,13 +180,11 @@ func NewFuzzer(config Config, printer ResultPrinter) *Fuzzer {
         MaxIdleConnDuration: 10 * time.Second,
     }
     
-    // Initialize filter based on matchers and filters
     filter := NewFilter(config.Matchers, config.Filters)
     
-    // Set default matchers if none are configured
     if config.Matchers.StatusCodes == "" {
         config.Matchers.StatusCodes = "200-299,301,302,307,401,403,405,500"
-        filter = NewFilter(config.Matchers, config.Filters) // Re-initialize filter with default matchers
+        filter = NewFilter(config.Matchers, config.Filters)
     }
     
     f := &Fuzzer{
@@ -214,7 +198,6 @@ func NewFuzzer(config Config, printer ResultPrinter) *Fuzzer {
         requestQueue: make(chan *fasthttp.Request, 10000),
     }
     
-    // Initialize advanced components
     if config.RateLimiter.RequestsPerSecond > 0 {
         f.rateLimiter = NewRateLimiter(config.RateLimiter)
     }
@@ -234,7 +217,6 @@ func NewFuzzer(config Config, printer ResultPrinter) *Fuzzer {
     return f
 }
 
-// loadWordlists reads all wordlists specified in the configuration.
 func (f *Fuzzer) loadWordlists() error {
     f.wordlists = make(map[string][]string)
     for _, spec := range f.config.Wordlists {
@@ -248,16 +230,47 @@ func (f *Fuzzer) loadWordlists() error {
         scanner := bufio.NewScanner(file)
         for scanner.Scan() {
             word := strings.TrimSpace(scanner.Text())
-            if word != "" {
-                // Apply encoders if configured
-                if f.encoder != nil {
-                    encodedWord, err := f.encoder.EncodeChain(word)
-                    if err == nil && encodedWord != "" {
-                        words = append(words, encodedWord)
-                    }
-                } else {
-                    words = append(words, word)
+            if word == "" {
+                continue
+            }
+            
+            if f.config.ExcludeComments && (strings.HasPrefix(word, "#") || 
+               strings.HasPrefix(word, "~") || strings.HasPrefix(word, "/")) {
+                continue
+            }
+            
+            if f.config.ExcludeDots && strings.HasPrefix(word, ".") {
+                continue
+            }
+            
+            if f.config.ExcludeNumbers && len(word) > 0 && 
+               word[0] >= '0' && word[0] <= '9' {
+                continue
+            }
+            
+            if f.config.ExcludeAllUpper && isAllUppercase(word) {
+                continue
+            }
+            
+            if f.config.ExcludeAllLower && isAllLowercase(word) {
+                continue
+            }
+            
+            if f.config.ExcludeFirstUpper && len(word) > 0 && unicode.IsUpper(rune(word[0])) {
+                continue
+            }
+            
+            if f.config.ExcludeFirstLower && len(word) > 0 && unicode.IsLower(rune(word[0])) {
+                continue
+            }
+            
+            if f.encoder != nil {
+                encodedWord, err := f.encoder.EncodeChain(word)
+                if err == nil && encodedWord != "" {
+                    words = append(words, encodedWord)
                 }
+            } else {
+                words = append(words, word)
             }
         }
 
@@ -265,7 +278,6 @@ func (f *Fuzzer) loadWordlists() error {
             return fmt.Errorf("[error] :: error reading wordlist %s: %v", spec.Path, err)
         }
 
-        // Append extensions if specified
         if f.config.Extensions != "" {
             extList := parseExtensions(f.config.Extensions)
             if len(extList) > 0 {
@@ -284,19 +296,34 @@ func (f *Fuzzer) loadWordlists() error {
     return nil
 }
 
-// generatePayloads generates the Cartesian product of all wordlists and sends payloads to the job channel.
+func isAllUppercase(s string) bool {
+    for _, r := range s {
+        if unicode.IsLetter(r) && !unicode.IsUpper(r) {
+            return false
+        }
+    }
+    return true
+}
+
+func isAllLowercase(s string) bool {
+    for _, r := range s {
+        if unicode.IsLetter(r) && !unicode.IsLower(r) {
+            return false
+        }
+    }
+    return true
+}
+
 func (f *Fuzzer) generatePayloads(jobs chan<- map[string]string) {
     if len(f.wordlists) == 0 {
         return
     }
 
-    // Get all BOO IDs (keywords)
     var booIDs []string
     for booID := range f.wordlists {
         booIDs = append(booIDs, booID)
     }
 
-    // Generate cartesian product
     indices := make([]int, len(booIDs))
     for {
         payload := make(map[string]string)
@@ -310,7 +337,6 @@ func (f *Fuzzer) generatePayloads(jobs chan<- map[string]string) {
         case jobs <- payload:
         }
 
-        // Increment indices
         done := true
         for i := len(indices) - 1; i >= 0; i-- {
             indices[i]++
@@ -326,34 +352,27 @@ func (f *Fuzzer) generatePayloads(jobs chan<- map[string]string) {
     }
 }
 
-// Run executes the fuzzer process, setting up workers and coordinating tasks.
 func (f *Fuzzer) Run(ctx context.Context) error {
     f.ctx, f.cancel = context.WithCancel(ctx)
     defer f.cancel()
     
-    // Check if keywords are present in the request
-    if len(f.config.Wordlists) > 1 {
+    if len(f.config.Wordlists) > 0 {
         keywords := make([]string, 0, len(f.config.Wordlists))
         for _, spec := range f.config.Wordlists {
             keywords = append(keywords, spec.BooID)
         }
         
-        hasAllKeywords := f.checkKeywordsInRequest(keywords)
-        
-        if !hasAllKeywords {
-            fmt.Fprintf(os.Stderr, "[warning] :: Keywords %v defined in wordlists, but not all found in request.\n", keywords)
-            fmt.Fprintln(os.Stderr, "[warning] :: Make sure to use the same keywords in URL, headers or POST data.")
+        if !f.checkKeywordsInRequest(keywords) {
+            return fmt.Errorf("keywords not found in request")
         }
     }
     
-    // Authenticate if necessary
     if f.authManager != nil {
         fmt.Println("[info] :: Authenticating...")
         if err := f.authManager.Authenticate(); err != nil {
             fmt.Printf("[error] :: Authentication failed: %v\n", err)
             return err
         }
-        // Add session cookies to the configuration
         for _, cookie := range f.authManager.GetSessionCookies() {
             if f.config.Cookie != "" {
                 f.config.Cookie += "; " + cookie
@@ -363,13 +382,12 @@ func (f *Fuzzer) Run(ctx context.Context) error {
         }
     }
     
-    // Detect WAF if enabled
     if f.wafDetector != nil {
         fmt.Println("[info] :: Detecting WAF...")
         wafDetected := f.wafDetector.Detect(f.config.URL)
         if wafDetected {
             fmt.Println("[warning] :: WAF detected. Enabling evasion techniques.")
-            f.config.Advanced.EvasionLevel = 3 // Medium evasion level
+            f.config.Advanced.EvasionLevel = 3
         }
     }
     
@@ -379,74 +397,20 @@ func (f *Fuzzer) Run(ctx context.Context) error {
 
     assets.PrintBanner()
 
-    // Display configuration information
-    const labelWidth = 21
-
-    infoLabels := []struct {
-        label string
-        value interface{}
-    }{
-        {"Method", f.config.Method},
-        {"URL", f.config.URL},
-        {"Follow redirects", f.config.FollowRedirects},
-        {"Threads", f.config.Threads},
-        {"Rate limit", fmt.Sprintf("%d req/sec", f.config.RateLimiter.RequestsPerSecond)},
-    }
-    
-    // Only show auth type if it's configured
-    if f.config.Auth.Type != "" {
-        infoLabels = append(infoLabels, struct {
-            label string
-            value interface{}
-        }{"Auth type", f.config.Auth.Type})
-    }
-    
-    for _, item := range infoLabels {
-        displayLabel := item.label
-        if len(displayLabel) > labelWidth {
-            displayLabel = displayLabel[:labelWidth-3] + "..."
-        }
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, displayLabel)
-        fmt.Printf("[info] :: %s: %v\n", labelColumn, item.value)
-    }
-    
-
-    // Print wordlists
-    for _, spec := range f.config.Wordlists {
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, "Wordlist")
-        fmt.Printf("[info] :: %s: %s [Keyword: FUZZ] (%d words)\n", 
-            labelColumn, spec.Path, len(f.wordlists[spec.BooID]))
-    }
-    
-    // Print extensions if configured
-    if f.config.Extensions != "" {
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, "Extensions")
-        fmt.Printf("[info] :: %s: %s\n", labelColumn, f.config.Extensions)
-    }
-    
-    // Display encoders if configured
-    if f.encoder != nil {
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, "Encoders")
-        fmt.Printf("[info] :: %s: %v\n", labelColumn, f.config.Encoders.Chains)
-    }
-
-    fmt.Println(f.getMatcherDescription())
-    fmt.Println()
+    // Imprimir información básica de configuración usando el printer
+    f.printer.PrintConfigInfo(f.config, f.wordlists)
 
     f.startTime = time.Now()
 
-    // Calculate total combinations
     f.totalCombinations = 1
     for _, words := range f.wordlists {
         f.totalCombinations *= len(words)
     }
 
-    // Start rate limiter if configured
     if f.rateLimiter != nil {
         go f.rateLimiter.Run()
     }
 
-    // Start progress update ticker
     f.progressTicker = time.NewTicker(200 * time.Millisecond)
     go f.updateProgress()
     
@@ -454,13 +418,11 @@ func (f *Fuzzer) Run(ctx context.Context) error {
 
     go f.printResults()
 
-    // Start workers with rate limiting
     for i := 0; i < f.config.Threads; i++ {
         f.wg.Add(1)
         go f.worker(i, jobs)
     }
 
-    // Start payload generator
     go func() {
         defer close(jobs)
         f.generatePayloads(jobs)
@@ -469,10 +431,8 @@ func (f *Fuzzer) Run(ctx context.Context) error {
     f.wg.Wait()
     close(f.results)
     
-    // Wait for the printer to finish processing remaining results
     <-f.printerDone
     
-    // Stop progress and rate limiting
     f.progressStop <- true
     f.progressTicker.Stop()
     
@@ -485,9 +445,20 @@ func (f *Fuzzer) Run(ctx context.Context) error {
     return nil
 }
 
-// checkKeywordsInRequest verifies if the wordlist keywords are used in the request structure.
+func (f *Fuzzer) containsKeywordInHeaders(keyword string) bool {
+    for _, header := range f.config.Headers {
+        if strings.Contains(header, keyword) {
+            return true
+        }
+    }
+    return false
+}
+
 func (f *Fuzzer) checkKeywordsInRequest(keywords []string) bool {
     urlContainsKeyword := false
+    dataContainsKeyword := false
+    headersContainKeyword := false
+    
     for _, keyword := range keywords {
         if strings.Contains(f.config.URL, keyword) {
             urlContainsKeyword = true
@@ -495,7 +466,6 @@ func (f *Fuzzer) checkKeywordsInRequest(keywords []string) bool {
         }
     }
     
-    dataContainsKeyword := false
     for _, keyword := range keywords {
         if strings.Contains(f.config.Data, keyword) {
             dataContainsKeyword = true
@@ -503,7 +473,6 @@ func (f *Fuzzer) checkKeywordsInRequest(keywords []string) bool {
         }
     }
     
-    headersContainKeyword := false
     for _, header := range f.config.Headers {
         for _, keyword := range keywords {
             if strings.Contains(header, keyword) {
@@ -516,10 +485,16 @@ func (f *Fuzzer) checkKeywordsInRequest(keywords []string) bool {
         }
     }
     
-    return urlContainsKeyword || dataContainsKeyword || headersContainKeyword
+    foundInRequest := urlContainsKeyword || dataContainsKeyword || headersContainKeyword
+    
+    if !foundInRequest {
+        assets.PrintKeywordError(keywords, f.config.Colorize)
+        return false
+    }
+    
+    return true
 }
 
-// updateProgress periodically displays the fuzzer's progress.
 func (f *Fuzzer) updateProgress() {
     for {
         select {
@@ -543,98 +518,6 @@ func (f *Fuzzer) updateProgress() {
     }
 }
 
-// getMatcherDescription generates a formatted string detailing configured matchers and filters.
-func (f *Fuzzer) getMatcherDescription() string {
-    const labelWidth = 21
-    const prefix = "[info] :: "
-    
-    var result strings.Builder
-    firstLine := true
-    
-    // Matchers (Show)
-    if f.config.Matchers.StatusCodes != "" {
-        label := "Show"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        if firstLine {
-            result.WriteString(fmt.Sprintf("%s%s: Response status: %s", prefix, labelColumn, f.config.Matchers.StatusCodes))
-            firstLine = false
-        } else {
-            result.WriteString(fmt.Sprintf("\n%s%s: Response status: %s", prefix, labelColumn, f.config.Matchers.StatusCodes))
-        }
-    } else {
-        label := "Show"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        if firstLine {
-            result.WriteString(fmt.Sprintf("%s%s: Response status: all", prefix, labelColumn))
-            firstLine = false
-        } else {
-            result.WriteString(fmt.Sprintf("\n%s%s: Response status: all", prefix, labelColumn))
-        }
-    }
-    
-    if f.config.Matchers.Lines != "" {
-        label := "Show"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Lines: %s", prefix, labelColumn, f.config.Matchers.Lines))
-    }
-    
-    if f.config.Matchers.Words != "" {
-        label := "Show"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Words: %s", prefix, labelColumn, f.config.Matchers.Words))
-    }
-    
-    if f.config.Matchers.Size != "" {
-        label := "Show"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Size: %s", prefix, labelColumn, f.config.Matchers.Size))
-    }
-    
-    if f.config.Matchers.Regex != "" {
-        label := "Show"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Regex: %s", prefix, labelColumn, f.config.Matchers.Regex))
-    }
-    
-    // Filters (Hide)
-    if f.config.Filters.StatusCodes != "" {
-        label := "Hide"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        if result.Len() == 0 {
-            result.WriteString(fmt.Sprintf("%s%s: Status codes: %s", prefix, labelColumn, f.config.Filters.StatusCodes))
-        } else {
-            result.WriteString(fmt.Sprintf("\n%s%s: Status codes: %s", prefix, labelColumn, f.config.Filters.StatusCodes))
-        }
-    }
-    
-    if f.config.Filters.Lines != "" {
-        label := "Hide"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Lines: %s", prefix, labelColumn, f.config.Filters.Lines))
-    }
-    
-    if f.config.Filters.Words != "" {
-        label := "Hide"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Words: %s", prefix, labelColumn, f.config.Filters.Words))
-    }
-    
-    if f.config.Filters.Size != "" {
-        label := "Hide"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Filter size: %s", prefix, labelColumn, f.config.Filters.Size))
-    }
-    
-    if f.config.Filters.Regex != "" {
-        label := "Hide"
-        labelColumn := fmt.Sprintf("%-*s", labelWidth, label)
-        result.WriteString(fmt.Sprintf("\n%s%s: Filter regex: %s", prefix, labelColumn, f.config.Filters.Regex))
-    }
-    
-    return result.String()
-}
-
-// worker fetches payloads from the job channel and executes requests.
 func (f *Fuzzer) worker(id int, jobs <-chan map[string]string) {
     defer f.wg.Done()
 
@@ -647,7 +530,6 @@ func (f *Fuzzer) worker(id int, jobs <-chan map[string]string) {
                 return
             }
             
-            // Apply rate limiting if configured
             if f.rateLimiter != nil {
                 f.rateLimiter.Wait()
             }
@@ -656,14 +538,12 @@ func (f *Fuzzer) worker(id int, jobs <-chan map[string]string) {
 
             f.counterLock.Lock()
             f.counter++
-            // Store the payload for progress display
             f.lastWord = formatPayload(payload) 
             f.counterLock.Unlock()
         }
     }
 }
 
-// makeRequest builds and sends an HTTP request using fasthttp.
 func (f *Fuzzer) makeRequest(payload map[string]string) {
     select {
     case <-f.ctx.Done():
@@ -676,7 +556,6 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
     defer fasthttp.ReleaseRequest(req)
     defer fasthttp.ReleaseResponse(resp)
     
-    // Apply evasion techniques if enabled
     if f.config.Advanced.EvasionLevel > 0 {
         f.applyEvasionTechniques(req)
     }
@@ -685,15 +564,12 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
     targetURL = f.config.URL
     for booID, word := range payload {
         if f.config.Raw {
-            // Raw replacement (no encoding)
             targetURL = strings.ReplaceAll(targetURL, booID, word)
         } else {
-            // Apply encoding based on configuration and evasion level
             encodedWord := word
             if f.config.Advanced.EvasionLevel >= 2 {
                 encodedWord = applyURLEncoding(encodedWord, f.config.Advanced.EvasionLevel)
             }
-            // URL encode the entire word *after* evasion encoding, if not raw
             targetURL = strings.ReplaceAll(targetURL, booID, url.QueryEscape(encodedWord))
         }
     }
@@ -701,7 +577,6 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
     req.SetRequestURI(targetURL)
     req.Header.SetMethod(f.config.Method)
     
-    // Apply headers with encoding if necessary
     for _, header := range f.config.Headers {
         parts := strings.SplitN(header, ":", 2)
         if len(parts) == 2 {
@@ -724,7 +599,6 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
         req.Header.Set("Cookie", f.config.Cookie)
     }
     
-    // Process POST data
     if f.config.Data != "" {
         data := f.config.Data
         for booID, word := range payload {
@@ -736,7 +610,6 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
         }
         req.SetBodyString(data)
         if f.config.Method == "POST" {
-            // Default content type for POST data if not set explicitly
             req.Header.SetContentType("application/x-www-form-urlencoded")
         }
     }
@@ -761,23 +634,18 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
         result.Headers = resp.Header.String()
         
         bodyStr := string(resp.Body())
-        // Count lines and words in the response body
         result.Lines = len(strings.Split(bodyStr, "\n"))
         result.Words = len(strings.Fields(bodyStr))
         
-        // Detect rate limiting or blocks
         if f.wafDetector != nil {
             if f.wafDetector.IsBlocked(resp) {
                 result.Body += "\n[WARNING: Request blocked by WAF/IPS]"
-                // Reduce rate limiting if a block is detected
                 if f.rateLimiter != nil {
-                    // This is a manual rate adjustment example, adaptive control is better handled in the RateLimiter component itself
-                    f.rateLimiter.AdjustRate(-10) // Reduce by 10 req/sec
+                    f.rateLimiter.AdjustRate(-10)
                 }
             }
         }
         
-        // Handle redirects
         if f.config.FollowRedirects && (result.Status >= 300 && result.Status < 400) {
             location := resp.Header.Peek("Location")
             if len(location) > 0 {
@@ -786,7 +654,6 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
         }
     }
     
-    // Send result to the results channel
     select {
     case <-f.ctx.Done():
         return
@@ -794,17 +661,14 @@ func (f *Fuzzer) makeRequest(payload map[string]string) {
     }
 }
 
-// formatPayload converts the payload map into a single string for display.
 func formatPayload(payload map[string]string) string {
     var parts []string
-    // Note: Iterating maps is non-deterministic, but adequate for simple logging display.
     for _, v := range payload {
         parts = append(parts, v)
     }
     return strings.Join(parts, " | ")
 }
 
-// printResults consumes results from the channel, applies filtering, and sends them to the printer.
 func (f *Fuzzer) printResults() {
     defer func() {
         f.printerDone <- true
@@ -819,12 +683,10 @@ func (f *Fuzzer) printResults() {
                 return
             }
             
-            // Skip non-error results if silent mode is enabled
             if f.config.Silent && result.Error == "" {
                 continue
             }
             
-            // Apply filtering logic
             if !f.filter.ShouldShow(result) {
                 continue
             }
@@ -834,34 +696,24 @@ func (f *Fuzzer) printResults() {
     }
 }
 
-// --- Evasion Functions ---
-
-// applyEvasionTechniques adds general evasion methods to the request based on the configured level.
 func (f *Fuzzer) applyEvasionTechniques(req *fasthttp.Request) {
-    // Random User-Agent
     if f.config.Advanced.RandomizeUA {
         req.Header.Set("User-Agent", getRandomUserAgent())
     }
     
-    // Add random headers (e.g., XFF)
     if f.config.Advanced.EvasionLevel >= 2 {
         req.Header.Set("X-Forwarded-For", generateRandomIP())
         req.Header.Set("X-Client-IP", generateRandomIP())
     }
     
-    // Add random delay
     if f.config.Advanced.EvasionLevel >= 3 {
-        // Delay up to 500ms
         time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
     }
     
-    // Character encoding (placeholder for advanced encoding logic)
     if f.config.Advanced.EvasionLevel >= 4 {
-        // Could involve Unicode or UTF-8 obfuscation logic here
     }
 }
 
-// getRandomUserAgent returns a randomly selected User-Agent string.
 func getRandomUserAgent() string {
     userAgents := []string{
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -873,30 +725,26 @@ func getRandomUserAgent() string {
     return userAgents[rand.Intn(len(userAgents))]
 }
 
-// generateRandomIP creates a random IPv4 address string.
 func generateRandomIP() string {
     return fmt.Sprintf("%d.%d.%d.%d", 
         rand.Intn(255), rand.Intn(255), 
         rand.Intn(255), rand.Intn(255))
 }
 
-// applyURLEncoding applies payload encoding specific to the URL path/query based on evasion level.
 func applyURLEncoding(input string, level int) string {
     if level == 1 {
         return url.QueryEscape(input)
     }
     
-    // Double encoding
     if level >= 2 {
         encoded := url.QueryEscape(input)
         return url.QueryEscape(encoded)
     }
     
-    // Special encoding for WAF evasion (e.g., partial hex encoding)
     if level >= 3 {
         var result strings.Builder
         for _, r := range input {
-            if rand.Intn(100) < 30 { // 30% of characters are hex encoded
+            if rand.Intn(100) < 30 {
                 result.WriteString(fmt.Sprintf("%%%02X", r))
             } else {
                 result.WriteRune(r)
@@ -908,30 +756,25 @@ func applyURLEncoding(input string, level int) string {
     return input
 }
 
-// applyHeaderEncoding applies encoding specific to header values.
 func applyHeaderEncoding(input string) string {
-    // For headers, sometimes use base64
     if rand.Intn(100) < 20 {
         return base64.StdEncoding.EncodeToString([]byte(input))
     }
     return input
 }
 
-// applyDataEncoding applies encoding specific to POST body data.
 func applyDataEncoding(input string, level int) string {
     if level == 1 {
         return input
     }
     
     if level >= 2 {
-        // Add null bytes
         if rand.Intn(100) < 10 {
             return input + string([]byte{0})
         }
         
-        // Add Unicode characters
         if rand.Intn(100) < 10 {
-            return input + "\u200b" // Zero-width space
+            return input + "\u200b"
         }
     }
     
