@@ -252,7 +252,7 @@ func printUsage() {
     fmt.Println()
     fmt.Println("[OPTIONS] ENCODING:")
     fmt.Println("  -encode           Encoder chain (e.g., 'base64(md5(input))', 'urlencode(sha256(input))')")
-    fmt.Println("                    base64, md5, sha1, sha256, urlencode, htmlencode, hex, unicode, rot13")
+    fmt.Println("                    MODES: base64, md5, sha1, sha256, urlencode, htmlencode, hex, unicode, rot13")
     fmt.Println()
     fmt.Println("[OPTIONS] EVASION:")
     fmt.Println("  -detect-waf       Detect WAF and adjust evasion (default: false)")
