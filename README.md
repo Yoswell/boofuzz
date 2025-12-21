@@ -43,62 +43,13 @@ Boofuzz is a high-performance HTTP web fuzzer written in Go, designed for direct
 
 ### Core Features
 
-#### Fuzzing Engine
-
-  * **Multiple Wordlists**: Support for multiple wordlists with custom identifiers (e.g., `wordlist.txt:FUZZ`)
-  * **Placeholder System**: Replace FUZZ (and custom) placeholders in URLs, headers, and POST data
-  * **Cartesian Product Generation**: Generate combinations from multiple wordlists for comprehensive testing
-  * **Concurrent Processing**: Configurable thread count for high-speed fuzzing
-  * **Request Customization**: Support for custom headers, methods, cookies, and POST data
-
-#### Rate Limiting & Performance
-
-  * **Requests Per Second (RPS)**: Control the rate of requests to avoid detection
-  * **Adaptive Rate Limiting**: Automatically adjust rates based on server response
-  * **Backoff Strategies**: Linear, exponential, and random backoff strategies
-  * **Retry Mechanism**: Configurable retry attempts for failed requests
-  * **Jitter Support**: Add random delays to avoid pattern detection
-
-#### Authentication System
-
-  * **Basic Authentication**: Username/password authentication
-  * **Bearer Token**: JWT and API token authentication
-  * **Form-based Authentication**: Automatic login and session handling
-  * **OAuth2 Support**: OAuth2 flow support for modern applications
-  * **Session Management**: Automatic session cookie handling
-
-#### WAF Detection & Evasion
-
-  * **Automatic WAF Detection**: Detect and identify WAF/IPS systems
-  * **Evasion Levels**: 5 levels of evasion techniques (0-5)
-  * **User-Agent Randomization**: Random User-Agent strings
-  * **Header Obfuscation**: Random headers and IP spoofing
-  * **Payload Encoding**: Multiple encoding strategies to bypass filters
-  * **Adaptive Evasion**: Automatically adjust evasion based on detected WAF
-
-#### Payload Encoding & Manipulation
-
-  * **Encoding Chains**: Combine multiple encoders in sequence
-  * **Supported Encoders**: Base64, MD5, SHA1, SHA256, URL, HTML, Hex, Unicode, ROT13
-  * **Custom Chains**: Create complex encoding pipelines
-  * **Evasion Encoding**: Automatic encoding for WAF bypass
-
-#### Response Analysis
-
-  * **Status Code Matching**: Show/hide responses based on HTTP status codes
-  * **Content Filtering**: Filter by response size, line count, word count, or regex patterns
-  * **Extension Filtering**: Show/hide results based on file extensions
-  * **Body Inspection**: Display response bodies with `-sb` flag
-  * **Header Inspection**: Display response headers with `-sh` flag
-  * **Regex Matching**: Advanced pattern matching in response content
-
-#### Output Options
-
-  * **Verbose Mode**: Detailed output with timing and response statistics
-  * **JSON Output**: Machine-readable JSON format for integration
-  * **Colored Output**: Colorized terminal output for better readability
-  * **Progress Tracking**: Real-time progress display with completion percentage
-  * **Silent Mode**: Suppress output for background processing
+ * **Fuzzing Engine**
+ * **Rate Limiting & Performance**
+ * **Authentication System**
+ * **WAF Detection & Evasion**
+ * **Payload Encoding & Manipulation**
+ * **Response Analysis**
+ * **Output Options**
 
 -----
 
